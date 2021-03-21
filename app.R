@@ -20,12 +20,16 @@ ui <- fluidPage(
   sidebarLayout(
     
     # Sidebar for csv upload and realization analysis level
-    sidebarPanel(paste("Upload your csv file here.   
-                 File should contain three fields: 
-                 Alternative, Value Scores, Costs", sep ="<br/>"), 
-                   fileInput(inputId = "filedata",
-                             label = "Upload data. Choose csv file",
+    sidebarPanel(fileInput(inputId = "valuedata",
+                             label = "Upload value data here. Choose csv file:",
                              accept = c(".csv")),
+                 fileInput(inputId = "costdata",
+                           label = "Upload cost data here. Choose csv file:",
+                           accept = c(".csv")),
+                 numericInput("samplesize1", label = "Set Sample Size",
+                              1000, min = 1),
+                 numericInput("setseed1", label = "Set Seed Value",
+                              123, min=1),
                  radioButtons("radio", label = h4("Select Realization Analysis Level"),
                               choices = list("Level 0" = 0, "Level 1" = 1, 
                                              "Level 2" = 2), 
@@ -54,10 +58,6 @@ ui <- fluidPage(
                                    tabPanel("Pairwise Comparison", 
                                                             selectInput('alt1', 'Alternative 1', ""),
                                                             selectInput('alt2', 'Alternative 2', ""),
-                                                            numericInput("samplesize", label = "Set Sample Size",
-                                                                         1000, min = 1),
-                                                            numericInput("setseed", label = "Set Seed Value",
-                                                                         123, min=1),
                                    tableOutput("pareto_table")),
                                             #downloadButton("valuehistpng", "Download"))
                                    tabPanel("Average Dominance Score", 
@@ -86,10 +86,27 @@ server <- function(input, output, session) {
 
   # Increase file upload size to 30MB
   options(shiny.maxRequestSize=30*1024^2)
-  data <- reactive({
-    req(input$filedata)
-    read.csv(input$filedata$datapath)
+  valuedata <- reactive({
+    req(input$valuedata)
+    read.csv(input$valuedata$datapath)
     })
+  
+  costdata <- reactive({
+    req(input$costdata)
+    read.csv(input$costdata$datapath)
+  })
+  
+  # Merge value and Cost Data through resampling
+  data <- reactive(if (is.null(valuedata()) == T || is.null(costdata()) ==T){
+    return (FALSE)} else {
+      input$goButton
+      # Call create_resamples function to create n data samples
+      sample_alternatives <- create_resamples(valuedata(), costdata(), 
+                                              input$samplesize1, input$setseed1)
+      return(sample_alternatives)
+    })
+  
+  
   
   # Select Level of Analysis (0, 1, or 2)
   output$level <- renderPrint({ input$radio })
@@ -108,9 +125,9 @@ server <- function(input, output, session) {
   updateSelectInput(session, "alt2",choices = unique(data()$Alternative),
                     selected = unique(data()$Alternative)[[2]])
   })
-  output$pareto_table <- renderTable({gen_pareto_table(data(), input$alt1, input$alt2, input$samplesize, input$setseed)},
+  output$pareto_table <- renderTable({gen_pareto_table(data(), input$alt1, input$alt2)},
       colnames = FALSE)
-  output$ads_table <- renderTable({ads_table(data(), input$samplesize, input$setseed)})
+  output$ads_table <- renderTable({ads_table(data())})
   
   # Level 2 Tab Plots
   observe({
@@ -172,7 +189,7 @@ server <- function(input, output, session) {
   )
   
   # Condition that hides panels until data is loaded
-  output$status <- reactive(if (is.null(data())) {
+  output$status <- reactive(if (is.null(valuedata()) || is.null(costdata())) {
     return(FALSE)
   } else {return(TRUE)})
   outputOptions(output, "status", suspendWhenHidden = FALSE)

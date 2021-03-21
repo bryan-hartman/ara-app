@@ -1,3 +1,15 @@
+
+# Resample data function
+create_resamples <- function(val, cost, n, seed){
+  set.seed(seed)
+  values <- val %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
+  costs <- cost %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
+  data <- data.frame(values, costs[,2])
+  colnames(data)[3] <- "Cost"
+  return(data)
+}
+
+
 # Below are the functions for each plot used in the Realization Analysis
 
 # Function for Value Histogram
@@ -58,17 +70,17 @@ ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) +
 }
 
 # Function for Table generation
-gen_pareto_table <- function(dat, param1, param2, maxlength, seed){
+gen_pareto_table <- function(dat, param1, param2){
   if (is.null(dat)) {
     return(NULL)
   }
   if (param1 == param2){
     return("Please select two different alternatives")
   }
-  set.seed(seed)
+
   parameter1 <- subset(dat, Alternative == param1)
   parameter2 <- subset(dat, Alternative == param2)
-  level1(parameter1, parameter2, maxlength) %>%
+  level1(parameter1, parameter2) %>%
     as_huxtable(add_columnnames = TRUE, add_rownames = "Outcome") %>%
     set_font_size(14) %>% 
     set_bold(1, everywhere, TRUE) %>%
@@ -80,19 +92,10 @@ gen_pareto_table <- function(dat, param1, param2, maxlength, seed){
 #Level 1 Analysis
 ############################
 
-level1 = function(a, b, maxlength = 1000){
+level1 = function(a, b){
   #X and y are separate alternatives in tibble/dataframe format with cost and value columns
   #nSample has a default of 1000, but can be adjusted as desired
   #function scales well to 1,000,000 samples and still runs (slowly) at 10,000,000
-  
-  if(nrow(a)> maxlength){
-    # #sample alternative
-    a = a %>% sample_n(maxlength, replace = TRUE)
-  }
-  if(nrow(b)> maxlength){
-    # #sample alternative
-    b = b %>% sample_n(maxlength, replace = TRUE)
-  }
   
   #create pairings
   pairings = full_join(a,b, by = character())
@@ -127,8 +130,8 @@ level1 = function(a, b, maxlength = 1000){
 ##########################################
 
 
-ads_score = function(a, b, maxlength = 1000){
-  temp = level1(a,b, maxlength)
+ads_score = function(a, b){
+  temp = level1(a,b)
   score = (temp$`Final Count`[1]-temp$`Final Count`[2])/sum(temp$`Final Count`)
   score = set_names(score,paste0(a$Alternative[1], " compared to ", b$Alternative[1]))
   return(as.data.frame(score))
@@ -138,7 +141,7 @@ ads_score = function(a, b, maxlength = 1000){
 #########ADS Matrix
 ##########################################
 
-ads_matrix = function(list_of_alt, maxlength = 1000){
+ads_matrix = function(list_of_alt){
   
   #build square matrix of zeros the size of the deminsions of your list
   ads_mat = matrix(0, nrow = length(list_of_alt), ncol = length(list_of_alt))
@@ -155,7 +158,7 @@ ads_matrix = function(list_of_alt, maxlength = 1000){
       if(i == j){
         ads_mat[i,j] = 0
       } else {
-        ads_mat[i,j] = as.numeric(ads_score(list_of_alt[[i]],list_of_alt[[j]],maxlength))
+        ads_mat[i,j] = as.numeric(ads_score(list_of_alt[[i]],list_of_alt[[j]]))
         colnames(ads_mat)[j] = c(list_of_alt[[j]]$Alternative[1])
       }
     }
@@ -171,14 +174,14 @@ ads_matrix = function(list_of_alt, maxlength = 1000){
 }
 
 # Create ADS table
-ads_table <- function(dat, maxlength, seed) {
+ads_table <- function(dat) {
   if (is.null(dat)) {
     return(NULL)
   }
-  set.seed(seed)
+
   dat <- group_by(dat, Alternative)
   dat_list <- group_split(dat)
-  build_matrix <- ads_matrix(dat_list, maxlength)
+  build_matrix <- ads_matrix(dat_list)
   build_matrix$`Alternative` <- names(build_matrix[1:nrow(build_matrix)])
   build_matrix <- build_matrix[order(-build_matrix$`ADS Score`), , drop = FALSE] %>% 
     select(`Alternative`, everything())
