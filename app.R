@@ -7,7 +7,7 @@ library(huxtable)
 library(dtplyr)
 library(shinycssloaders)
 
-source('functions.R')
+source('R/functions.R')
 
 # Options for Spinner
 options(spinner.color="#0275D8", spinner.color.background="#ffffff", spinner.size=2)
