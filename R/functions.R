@@ -69,10 +69,16 @@ cloudplot <- function(dat){
 if (is.null(dat)) {
   return(NULL)
 }
+  
+means <- dat %>% group_by(Alternative) %>% summarise(mean(Value), mean(Cost))
+colnames(means) <- c("Alternative", "Value", "Cost")
+print(means)
 
 ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) + 
   stat_density_2d(geom = "polygon", aes(alpha = ..level.., color = Alternative), contour = TRUE) + 
   geom_point(alpha = .3) +
+  geom_point(data=means, color = "black", size = 4.5) +
+  geom_point(data=means,  mapping=aes(x = Cost, y = Value), size=3.5)+
   theme_minimal() + 
   guides(color = FALSE, alpha = FALSE, fill = guide_legend(override.aes = list(shape = NA)))+
   theme(panel.border = element_rect(colour = "black", fill = NA, size = 1.15))+ 
