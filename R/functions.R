@@ -9,6 +9,17 @@ create_resamples <- function(val, cost, n, seed){
   return(data)
 }
 
+# Build the pareto front alternatives (returns the front from top to bottom)
+pareto_front <- function(dat){
+  # Get 2D expected value
+  dat <- dat %>% group_by(Alternative) %>% summarise(mean(Value), mean(Cost))
+  
+  # Find the pareto front
+  D = dat[order(dat$`mean(Value)`,dat$`mean(Cost)`,decreasing=TRUE),]
+  front = D[which(!duplicated(cummin(D$`mean(Cost)`))),]
+  return(front$Alternative)
+}
+
 
 # Below are the functions for each plot used in the Realization Analysis
 

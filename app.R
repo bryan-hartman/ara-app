@@ -72,7 +72,10 @@ ui <- fluidPage(
                                    tabPanel("Trade zones",
                                             selectInput('alt1_2', 'Specify Trade Zone Alternative', ""),
                                             selectInput('alt2_2', 'In Relation to the Expected Value of which Alternative', ""),
-                                            plotOutput("level2_trade"),
+                                            fluidRow( 
+                                                     column(6,plotOutput("level2_trade")),
+                                                     column(6,plotOutput("image"))
+                                                     ),
                                             downloadButton("level2png", "Download"))
                        )
       )
@@ -108,6 +111,7 @@ server <- function(input, output, session) {
   
   
   
+  
   # Select Level of Analysis (0, 1, or 2)
   output$level <- renderPrint({ input$radio })
   
@@ -131,19 +135,24 @@ server <- function(input, output, session) {
   
   # Level 2 Tab Plots
   observe({
-    updateSelectInput(session, "alt1_2",choices = unique(data()$Alternative)
+    pareto <- pareto_front(data())
+    updateSelectInput(session, "alt1_2",choices = pareto[1:(length(pareto)-1)]
     )})
   observe({
-    updateSelectInput(session, "alt2_2",choices = unique(data()$Alternative),
-                      selected = unique(data()$Alternative)[[2]])
+    pareto <- pareto_front(data())
+    pareto <- pareto[which(pareto==input$alt1_2)+1]
+    updateSelectInput(session, "alt2_2",choices = pareto)
   })
-  output$level2_trade <- renderPlot({gen_level2_plot(data(), input$alt1_2, input$alt2_2)})
+  
+  output$level2_trade <- renderPlot({gen_level2_plot(data(), input$alt1_2, 
+                                                     input$alt2_2)})
 
   output$image <- renderImage({
     filename <- normalizePath(file.path(paste0('www/level_2.png')))
     list(
       src = filename, 
-      height = 400
+      height = 600,
+      resolution = 72*12
     )
   }, deleteFile = FALSE)
   
