@@ -41,7 +41,7 @@ ui <- fluidPage(
     
     # Main panel for Selected Level Analysis
     mainPanel(
-      
+      absolutePanel(h3("Copyright 2021 DSE"), bottom = 10, right = 10, fixed = TRUE),
       conditionalPanel(condition = "output.status && input.radio == 0",
       
                        # Level 0 Analysis Tabs
