@@ -72,7 +72,7 @@ if (is.null(dat)) {
   
 means <- dat %>% group_by(Alternative) %>% summarise(mean(Value), mean(Cost))
 colnames(means) <- c("Alternative", "Value", "Cost")
-print(means)
+
 
 ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) + 
   stat_density_2d(geom = "polygon", aes(alpha = ..level.., color = Alternative), contour = TRUE) + 

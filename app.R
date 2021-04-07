@@ -33,7 +33,11 @@ ui <- fluidPage(
                  radioButtons("radio", label = h4("Select Realization Analysis Level"),
                               choices = list("Level 0" = 0, "Level 1" = 1, 
                                              "Level 2" = 2), 
-                              selected = 0),),
+                              selected = 0),
+                 selectizeInput('alternative_select', label = "Select Alternatives for Evaluation", 
+                                choices = "",
+                                options = list('plugins' = list('remove_button')), 
+                                multiple = TRUE)),
     
     # Main panel for Selected Level Analysis
     mainPanel(
@@ -102,13 +106,20 @@ server <- function(input, output, session) {
   # Merge value and Cost Data through resampling
   data <- reactive(if (is.null(valuedata()) == T || is.null(costdata()) ==T){
     return (FALSE)} else {
-      input$goButton
+      
       # Call create_resamples function to create n data samples
       sample_alternatives <- create_resamples(valuedata(), costdata(), 
                                               input$samplesize1, input$setseed1)
       return(sample_alternatives)
     })
   
+
+  # Select alternatives of interest
+  observe({
+    updateSelectizeInput(session, "alternative_select",
+                         choices = unique(data()$Alternative),
+                         selected = unique(data()$Alternative)
+    )})
   
   
   
@@ -116,22 +127,24 @@ server <- function(input, output, session) {
   output$level <- renderPrint({ input$radio })
   
   # Level 0 Tab Plots
-  output$Valhist <- renderPlot({valhist(data())})
-  output$Valcdf <- renderPlot({valcdf(data())})
-  output$Costcdf <- renderPlot({costcdf(data())})
-  output$cloud <- renderPlot({cloudplot(data())})
+  output$Valhist <- renderPlot({valhist(subset(data(), Alternative %in% input$alternative_select))})
+  output$Valcdf <- renderPlot({valcdf(subset(data(), Alternative %in% input$alternative_select))})
+  output$Costcdf <- renderPlot({costcdf(subset(data(), Alternative %in% input$alternative_select))})
+  output$cloud <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
   
   # Level 1 Tab Plots
   observe({
-    updateSelectInput(session, "alt1",choices = unique(data()$Alternative)
+    choices <- subset(data(), Alternative %in% input$alternative_select)
+    updateSelectInput(session, "alt1",choices = unique(choices$Alternative)
     )})
   observe({
-  updateSelectInput(session, "alt2",choices = unique(data()$Alternative),
+    choices <- subset(data(), Alternative %in% input$alternative_select)
+    updateSelectInput(session, "alt2",choices = unique(choices$Alternative),
                     selected = unique(data()$Alternative)[[2]])
   })
-  output$pareto_table <- renderTable({gen_pareto_table(data(), input$alt1, input$alt2)},
+  output$pareto_table <- renderTable({gen_pareto_table(subset(data(), Alternative %in% input$alternative_select), input$alt1, input$alt2)},
       colnames = FALSE)
-  output$ads_table <- renderTable({ads_table(data())})
+  output$ads_table <- renderTable({ads_table(subset(data(), Alternative %in% input$alternative_select))})
   
   # Level 2 Tab Plots
   observe({
@@ -160,7 +173,7 @@ server <- function(input, output, session) {
   output$valuehistpng <- downloadHandler(
     filename = "valuehist.png", 
     content = function(file) {
-      valplot <- valhist(data())
+      valplot <- valhist(subset(data(), Alternative %in% input$alternative_select))
       ggsave(file, valplot, width = 10, height = 8)
     }
   )
@@ -168,7 +181,7 @@ server <- function(input, output, session) {
   output$valuecdfpng <- downloadHandler(
     filename = "valuecdf.png", 
     content = function(file) {
-      valcdfplot <- valcdf(data())
+      valcdfplot <- valcdf(subset(data(), Alternative %in% input$alternative_select))
       ggsave(file, valcdfplot, width = 10, height = 8)
     }
   )
@@ -176,7 +189,7 @@ server <- function(input, output, session) {
   output$costcdfpng <- downloadHandler(
     filename = "costcdf.png", 
     content = function(file) {
-      costcdfplot <- costcdf(data())
+      costcdfplot <- costcdf(subset(data(), Alternative %in% input$alternative_select))
       ggsave(file, costcdfplot, width = 10, height = 8)
     }
   )
@@ -184,7 +197,7 @@ server <- function(input, output, session) {
   output$cloudpng <- downloadHandler(
     filename = "cloud.png", 
     content = function(file) {
-      cloud <- cloudplot(data())
+      cloud <- cloudplot(subset(data(), Alternative %in% input$alternative_select))
       ggsave(file, cloud, width = 10, height = 8)
     }
   )
