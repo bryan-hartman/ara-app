@@ -76,6 +76,8 @@ ui <- fluidPage(
                                    tabPanel("Trade zones",
                                             selectInput('alt1_2', 'Specify Trade Zone Alternative', ""),
                                             selectInput('alt2_2', 'In Relation to the Expected Value of which Alternative', ""),
+                                            numericInput("delta_parameter", label = "Delta Parameter (enter value greater than or equal to 0)",
+                                                         .05, min = 0),
                                             fluidRow( 
                                                      column(6,plotOutput("level2_trade")),
                                                      column(6,plotOutput("image"))
@@ -158,7 +160,7 @@ server <- function(input, output, session) {
   })
   
   output$level2_trade <- renderPlot({gen_level2_plot(data(), input$alt1_2, 
-                                                     input$alt2_2)})
+                                                     input$alt2_2, tolerance = input$delta_parameter)})
 
   output$image <- renderImage({
     filename <- normalizePath(file.path(paste0('www/level_2.png')))

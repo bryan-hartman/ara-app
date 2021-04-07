@@ -219,6 +219,7 @@ level2 = function(a, b, tolerance = .05){
   a.value.mean = mean(a$Value)
   a.cost.mean = mean(a$Cost)
   
+  # alternative b should have greater value and greater cost
   if (a.value.mean > b.value.mean || a.cost.mean > b.cost.mean){
       return(FALSE)
   }
@@ -242,10 +243,12 @@ level2 = function(a, b, tolerance = .05){
   pairings = mutate(pairings, zone5 = if_else(pairings$b.value < a.value.mean & pairings$b.cost < a.cost.mean, 1, 0)) 
   #compute Zone 4 - Trade worse than expected - Unacceptable
   pairings = mutate(pairings, zone4 = if_else((pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade2 & 
-                                                pairings$b.value > a.value.mean & pairings$b.cost > a.cost.mean, 1, 0))
+                                                pairings$b.value > a.value.mean & pairings$b.cost > a.cost.mean &
+                                                zone6 < 1 & zone5 < 1, 1, 0))
   #compute Zone 3 - Trade worse than expected - Acceptable
   pairings = mutate(pairings, zone3 = if_else(trade2 < (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) & 
-                                                (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade1, 1, 0))
+                                                (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade1 &
+                                                zone6 < 1 & zone5 < 1, 1, 0))
   #compute Zone 2 - Trade better than expected
   pairings = mutate(pairings, zone2 = if_else((pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) > trade1 & 
                                                 pairings$b.cost > a.cost.mean, 1, 0))
@@ -272,27 +275,30 @@ level2 = function(a, b, tolerance = .05){
 
 ####Level 2 Plot#########
 # Function for Value CDF plot
-gen_level2_plot <- function(dat, param1, param2){
+gen_level2_plot <- function(dat, param1, param2, tolerance){
   if (is.null(dat)) {
     return(NULL)
   }
-  if (param1 == param2){
-    return(text(x = 0.5, y = 0.5, paste("Please select two different alternatives"), 
-                cex = 1.6, col = "black"))
-  }
+  # if (param1 == param2){
+  #   return(text(x = 0.5, y = 0.5, paste("Please select two different alternatives"), 
+  #               cex = 1.6, col = "black"))
+  # }
   
   parameter1 <- subset(dat, Alternative == param1)
   parameter2 <- subset(dat, Alternative == param2)
-  hist_plot <- level2(parameter2, parameter1, tolerance = .05)
-  if (hist_plot == FALSE){ 
-    return(text(x = 0.5, y = 0.5, paste("Please select appropriate alternatives (trade zone alternative should be 
-                                        more expensive and more valuable than the expected value of the compared alternative):"), 
-                                       cex = 1.6, col = "black"))
-    }
+  hist_plot <- level2(parameter2, parameter1, tolerance)
+  
+  # if (hist_plot == FALSE){ 
+  #   return(text(x = 0.5, y = 0.5, paste("Please select appropriate alternatives (trade zone alternative should be 
+  #                                       more expensive and more valuable than the expected value of the compared alternative):"), 
+  #                                      cex = 1.6, col = "black"))
+  # }
+
   hist_rollup <- hist_plot%>%
     select(zoneTest) %>% group_by(zoneTest) %>% 
     summarise(count=n()) %>%
     mutate(percent = 100*(count / sum(count)))
+
   
   hist_rollup$zoneTest <- factor(hist_rollup$zoneTest, levels = c("1", "2", "3", "4", "5","6"))
   
