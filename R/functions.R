@@ -24,15 +24,17 @@ pareto_front <- function(dat){
 # Below are the functions for each plot used in the Realization Analysis
 
 # Function for Value Histogram
-valhist <- function(dat) {
+valhist <- function(dat, alpha) {
   if (is.null(dat)) {
     return(NULL)
   }
   ggplot(dat, aes(x=Value, fill=Alternative)) +
-    theme_minimal() +
-    geom_histogram(alpha=0.5, position="identity") +
+    theme_classic() +
+    geom_histogram(alpha = alpha, position = "identity", binwidth = .25, col = "black") +
     scale_color_manual(values = c("blue", "brown", "green", "orange","purple","red"))+
-    scale_fill_manual(values = c("blue", "brown", "green", "orange","purple","red"))
+    scale_fill_manual(values = c("blue", "brown", "green", "orange","purple","red")) + 
+    labs(title = "Value Histogram") + 
+    theme(plot.title = element_text(hjust = 0.5))
 }
 
 # Function for Value CDF plot

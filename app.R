@@ -47,6 +47,10 @@ ui <- fluidPage(
                        # Level 0 Analysis Tabs
                        tabsetPanel(type = "tabs",
                                   tabPanel("Value Histogram", plotOutput("Valhist"),
+                                           # Input: Slider opacity level ----
+                                           sliderInput("opacity", "Set the opacity level:",
+                                                       min = 0, max = 1,
+                                                       value = .7),
                                            downloadButton("valuehistpng", "Download")),
                                   tabPanel("Value and Cost CDFs", plotOutput("Valcdf"),
                                            downloadButton("valuecdfpng", "Download"),
@@ -129,7 +133,7 @@ server <- function(input, output, session) {
   output$level <- renderPrint({ input$radio })
   
   # Level 0 Tab Plots
-  output$Valhist <- renderPlot({valhist(subset(data(), Alternative %in% input$alternative_select))})
+  output$Valhist <- renderPlot({valhist(subset(data(), Alternative %in% input$alternative_select), input$opacity)})
   output$Valcdf <- renderPlot({valcdf(subset(data(), Alternative %in% input$alternative_select))})
   output$Costcdf <- renderPlot({costcdf(subset(data(), Alternative %in% input$alternative_select))})
   output$cloud <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
@@ -175,7 +179,7 @@ server <- function(input, output, session) {
   output$valuehistpng <- downloadHandler(
     filename = "valuehist.png", 
     content = function(file) {
-      valplot <- valhist(subset(data(), Alternative %in% input$alternative_select))
+      valplot <- valhist(subset(data(), Alternative %in% input$alternative_select), input$opacity)
       ggsave(file, valplot, width = 10, height = 8)
     }
   )
