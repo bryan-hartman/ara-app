@@ -1,4 +1,4 @@
-# ara-app
+# Automated Realization Analysis Application
 
 ## Credits
 ARA was developed by Bryan Hartman from the United States Military Academy.
