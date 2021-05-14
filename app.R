@@ -66,10 +66,13 @@ ui <- fluidPage(
                                    tabPanel("Pairwise Comparison", 
                                                             selectInput('alt1', 'Alternative 1', ""),
                                                             selectInput('alt2', 'Alternative 2', ""),
-                                   tableOutput("pareto_table")),
+                                   tableOutput("pareto_table"),
+                                   fluidRow(column(9,plotOutput("cloud_2")))),
                                             #downloadButton("valuehistpng", "Download"))
                                    tabPanel("Average Dominance Score", 
-                                            withSpinner(tableOutput("ads_table"),type=5))
+                                            withSpinner(tableOutput("ads_table"),type=5),
+                                            fluidRow(column(9,plotOutput("cloud_3"))))
+                                   
                                 
         )
       ),
@@ -83,10 +86,11 @@ ui <- fluidPage(
                                             numericInput("delta_parameter", label = "Delta Parameter (enter value greater than or equal to 0)",
                                                          .05, min = 0),
                                             fluidRow( 
-                                                     column(6,plotOutput("level2_trade")),
-                                                     column(6,plotOutput("image"))
+                                                     column(9,plotOutput("level2_trade")),
+                                                     column(3,plotOutput("image"))
                                                      ),
-                                            downloadButton("level2png", "Download"))
+                                            downloadButton("level2png", "Download"),
+                                            fluidRow(column(9,plotOutput("cloud_4"))))
                        )
       )
       )
@@ -137,6 +141,9 @@ server <- function(input, output, session) {
   output$Valcdf <- renderPlot({valcdf(subset(data(), Alternative %in% input$alternative_select))})
   output$Costcdf <- renderPlot({costcdf(subset(data(), Alternative %in% input$alternative_select))})
   output$cloud <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
+  output$cloud_2 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
+  output$cloud_3 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
+  output$cloud_4 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
   
   # Level 1 Tab Plots
   observe({
