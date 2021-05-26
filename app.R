@@ -171,7 +171,8 @@ server <- function(input, output, session) {
   })
   
   output$level2_trade <- renderPlot({gen_level2_plot(data(), input$alt1_2, 
-                                                     input$alt2_2, tolerance = input$delta_parameter)})
+                                                     pareto_front(dat)[which(pareto_front(dat) ==input$alt1_2)+1], 
+                                                     tolerance = input$delta_parameter)})
 
   output$image <- renderImage({
     filename <- normalizePath(file.path(paste0('www/level_2.png')))
