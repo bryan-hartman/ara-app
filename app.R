@@ -83,8 +83,12 @@ ui <- fluidPage(
                                    tabPanel("Trade zones",
                                             selectInput('alt1_2', 'Specify Trade Zone Alternative', ""),
                                             selectInput('alt2_2', 'In Relation to the Expected Value of which Alternative', ""),
-                                            numericInput("delta_parameter", label = "Delta Parameter (enter value greater than or equal to 0)",
-                                                         .05, min = 0),
+                                            sliderInput("delta_parameter", "Set the Delta Parameter Level (between 0 and 1):",
+                                                        min = 0, max = 1,
+                                                        value = .05),
+                                            htmlOutput('delta_value'),
+                                            # numericInput("delta_parameter", label = "Delta Parameter (enter value greater than or equal to 0)",
+                                            #              .05, min = 0),
                                             fluidRow( 
                                                      column(9,plotOutput("level2_trade")),
                                                      column(3,plotOutput("image"))
@@ -160,6 +164,8 @@ server <- function(input, output, session) {
   output$ads_table <- renderTable({ads_table(subset(data(), Alternative %in% input$alternative_select))})
   
   # Level 2 Tab Plots
+  output$delta_value <- renderText({paste("<font size=\"6 px\"><b>","Cost Delta Value = ",round(delta_value(data(), input$alt1_2, 
+                                                input$delta_parameter),2),"</b></font>")})
   observe({
     pareto <- pareto_front(data())
     updateSelectInput(session, "alt1_2",choices = pareto[1:(length(pareto)-1)]

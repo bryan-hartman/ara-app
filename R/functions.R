@@ -229,13 +229,11 @@ level2 = function(a, b, tolerance = .05){
   
   #trade1 is the value/cost trade-off that you are considering
   trade1 = (b.value.mean - a.value.mean)/(b.cost.mean - a.cost.mean)
-  m1 = atan((b.cost.mean - a.cost.mean)/(b.value.mean - a.value.mean))
   
   #trade2 is the point at which you would no longer make the value/cost trade off and go with the cheaper alternative
   #This is the minimum acceptable trade ... default at 5% less than expected mean
-  trade2 = ((b.value.mean*(1-tolerance)) - a.value.mean)/(b.cost.mean - a.cost.mean)
-  m2 = atan((b.cost.mean - a.cost.mean)/((b.value.mean*(1-tolerance)) - a.value.mean))
-  
+  trade2 = ((b.value.mean) - a.value.mean)/(b.cost.mean*(1+tolerance) - a.cost.mean)
+
   #bind alternatives for computation
   pairings = tibble(a.value = a.value.mean, a.cost = a.cost.mean, b.value = b$Value, b.cost = b$Cost)
   
@@ -327,3 +325,10 @@ gen_level2_plot <- function(dat, param1, param2, tolerance){
                                "Zone 6"))
 }
 
+# return the delta value associated with the delta parameter
+delta_value = function(dat, param1, tolerance = .05){
+  b <- subset(dat, Alternative == param1)
+
+  delta = mean(b$Cost)*(tolerance)
+  return(delta)
+  }
