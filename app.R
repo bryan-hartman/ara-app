@@ -63,6 +63,15 @@ ui <- fluidPage(
                        
                        # Level 1 Analysis Tabs
                        tabsetPanel(type = "tabs",
+                                   tabPanel("Set Thompson's Method Parameters", 
+                                            selectInput('sig_level', 
+                                                        'Select the significance level (alpha) parameter:', 
+                                                        choices = c(.5, .4, .3, .2, .1, .05, .025, .02, .01, .005, .001,.0005, .0001), 
+                                                        selected = .05),
+                                            numericInput('half_width', 
+                                                         'Set the half-width interval (delta) parameter:', 
+                                                         .005, min = .0001, max = 1),
+                                            htmlOutput('thompson_value')),
                                    tabPanel("Pairwise Comparison", 
                                                             selectInput('alt1', 'Alternative 1', ""),
                                                             selectInput('alt2', 'Alternative 2', ""),
@@ -150,6 +159,12 @@ server <- function(input, output, session) {
   output$cloud_4 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
   
   # Level 1 Tab Plots
+  output$thompson_value <- renderText({paste(
+    "<font size=\"6 px\"><b>",
+    "Sample Size Needed: ",
+    thompson_method(input$sig_level, input$half_width),
+    "</b></font>")})
+  
   observe({
     choices <- subset(data(), Alternative %in% input$alternative_select)
     updateSelectInput(session, "alt1",choices = unique(choices$Alternative)
@@ -159,9 +174,11 @@ server <- function(input, output, session) {
     updateSelectInput(session, "alt2",choices = unique(choices$Alternative),
                     selected = unique(data()$Alternative)[[2]])
   })
-  output$pareto_table <- renderTable({gen_pareto_table(subset(data(), Alternative %in% input$alternative_select), input$alt1, input$alt2)},
+  output$pareto_table <- renderTable({gen_pareto_table(subset(data(), Alternative %in% input$alternative_select), input$alt1, input$alt2, 
+                                                       input$sig_level, input$half_width)},
       colnames = FALSE)
-  output$ads_table <- renderTable({ads_table(subset(data(), Alternative %in% input$alternative_select))})
+  output$ads_table <- renderTable({ads_table(subset(data(), Alternative %in% input$alternative_select),
+                                             input$sig_level, input$half_width)})
   
   # Level 2 Tab Plots
   output$delta_value <- renderText({paste("<font size=\"6 px\"><b>","Cost Delta Value = ",round(delta_value(data(), input$alt1_2, 
@@ -177,7 +194,7 @@ server <- function(input, output, session) {
   })
   
   output$level2_trade <- renderPlot({gen_level2_plot(data(), input$alt1_2, 
-                                                     pareto_front(dat)[which(pareto_front(dat) ==input$alt1_2)+1], 
+                                                     pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
                                                      tolerance = input$delta_parameter)})
 
   output$image <- renderImage({

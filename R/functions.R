@@ -88,8 +88,47 @@ ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) +
   scale_fill_manual(values = c("blue", "brown", "green", "orange","purple","red"))
 }
 
+############################
+#Level 1 Analysis
+############################
+
+# Thompson's Method
+thompson_method = function(alpha, delta) {
+  if(alpha==.5){
+    d2n <- .44129
+  } else if(alpha == .4){
+    d2n <- .50729
+  } else if(alpha == .3){
+    d2n <- .60123
+  } else if(alpha == .2){
+    d2n <- .74739
+  } else if(alpha == .1){
+    d2n <- 1.00635
+  } else if(alpha == .05){
+    d2n <- 1.27359
+  } else if(alpha == .025){
+    d2n <- 1.55963
+  } else if(alpha == .02){
+    d2n <- 1.65872
+  } else if(alpha == .01){
+    d2n <- 1.96986
+  } else if(alpha == .005){
+    d2n <- 2.28514
+  } else if(alpha == .001){
+    d2n <- 3.02892
+  } else if(alpha == .0005){
+    d2n <- 3.33530
+  } else {
+    d2n <- 4.11209
+  }
+  
+  n <- d2n / delta^2
+  return(n)
+}
+
+
 # Function for Table generation
-gen_pareto_table <- function(dat, param1, param2){
+gen_pareto_table <- function(dat, param1, param2, alpha, delta){
   if (is.null(dat)) {
     return(NULL)
   }
@@ -99,6 +138,14 @@ gen_pareto_table <- function(dat, param1, param2){
 
   parameter1 <- subset(dat, Alternative == param1)
   parameter2 <- subset(dat, Alternative == param2)
+  
+  # determine sample size needed from Thompson's Method
+  n <- sqrt(thompson_method(alpha, delta))
+  
+  # reduce data set down to amount required by Thompson's Method
+  parameter1 <- parameter1 %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
+  parameter2 <- parameter2 %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
+  
   level1(parameter1, parameter2) %>%
     as_huxtable(add_columnnames = TRUE, add_rownames = "Outcome") %>%
     set_font_size(14) %>% 
@@ -106,13 +153,8 @@ gen_pareto_table <- function(dat, param1, param2){
     set_all_borders(1)
 }
 
-
-############################
-#Level 1 Analysis
-############################
-
 level1 = function(a, b){
-  #X and y are separate alternatives in tibble/dataframe format with cost and value columns
+  #a and b are separate alternatives in tibble/dataframe format with cost and value columns
   #nSample has a default of 1000, but can be adjusted as desired
   #function scales well to 1,000,000 samples and still runs (slowly) at 10,000,000
   
@@ -193,12 +235,16 @@ ads_matrix = function(list_of_alt){
 }
 
 # Create ADS table
-ads_table <- function(dat) {
+ads_table <- function(dat, alpha, delta) {
   if (is.null(dat)) {
     return(NULL)
   }
+  
+  # determine sample size needed from Thompson's Method
+  n <- sqrt(thompson_method(alpha, delta))
 
-  dat <- group_by(dat, Alternative)
+  # reduce data set down to amount required by Thompson's Method
+  dat <- dat %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
   dat_list <- group_split(dat)
   build_matrix <- ads_matrix(dat_list)
   build_matrix$`Alternative` <- names(build_matrix[1:nrow(build_matrix)])
@@ -329,6 +375,6 @@ gen_level2_plot <- function(dat, param1, param2, tolerance){
 delta_value = function(dat, param1, tolerance = .05){
   b <- subset(dat, Alternative == param1)
 
-  delta = mean(b$Cost)*(tolerance)
-  return(delta)
+  delta_val = mean(b$Cost)*(tolerance)
+  return(delta_val)
   }
