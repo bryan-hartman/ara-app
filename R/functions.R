@@ -123,7 +123,7 @@ thompson_method = function(alpha, delta) {
   }
   
   n <- d2n / delta^2
-  return(n)
+  return(ceiling(n))
 }
 
 
@@ -140,26 +140,27 @@ gen_pareto_table <- function(dat, param1, param2, alpha, delta){
   parameter2 <- subset(dat, Alternative == param2)
   
   # determine sample size needed from Thompson's Method
-  n <- sqrt(thompson_method(alpha, delta))
+  n <- thompson_method(alpha, delta)
   
-  # reduce data set down to amount required by Thompson's Method
-  parameter1 <- parameter1 %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
-  parameter2 <- parameter2 %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
-  
-  level1(parameter1, parameter2) %>%
+  level1(parameter1, parameter2, n) %>%
     as_huxtable(add_columnnames = TRUE, add_rownames = "Outcome") %>%
     set_font_size(14) %>% 
     set_bold(1, everywhere, TRUE) %>%
     set_all_borders(1)
 }
 
-level1 = function(a, b){
+level1 = function(a, b, n){
   #a and b are separate alternatives in tibble/dataframe format with cost and value columns
   #nSample has a default of 1000, but can be adjusted as desired
   #function scales well to 1,000,000 samples and still runs (slowly) at 10,000,000
+  # Sample the amount needed to implement Thompson's Method
+  a <- sample_n(a, n, replace = TRUE)
+  b <- sample_n(b, n, replace = TRUE)
   
-  #create pairings
-  pairings = full_join(a,b, by = character())
+  # Merge samples and remove row.names
+  #pairings <- merge(a, b, by=0)
+  #pairings[,1] <- NULL
+  pairings <- as.data.frame(c(a, b))
   colnames(pairings) = c("alt.a","a.value","a.cost","alt.b","b.value","b.cost")
   
   #compute a dominance
@@ -174,6 +175,7 @@ level1 = function(a, b){
   pairings = mutate(pairings, a.GreaterThan.b = if_else(a.value > b.value, 1, 0))
   #start building final table
   `Final Count` = pairings %>% select(a.dominate, b.dominate, pareto_optimal_plus, pareto_optimal_minus)
+  
   #sum observations
   `Final Count` = `Final Count` %>% colSums()
   final_table = as.data.frame(`Final Count`)
@@ -191,8 +193,9 @@ level1 = function(a, b){
 ##########################################
 
 
-ads_score = function(a, b){
-  temp = level1(a,b)
+ads_score = function(a, b, n){
+
+  temp = level1(a,b,n)
   score = (temp$`Final Count`[1]-temp$`Final Count`[2])/sum(temp$`Final Count`)
   score = set_names(score,paste0(a$Alternative[1], " compared to ", b$Alternative[1]))
   return(as.data.frame(score))
@@ -202,9 +205,9 @@ ads_score = function(a, b){
 #########ADS Matrix
 ##########################################
 
-ads_matrix = function(list_of_alt){
-  
-  #build square matrix of zeros the size of the deminsions of your list
+ads_matrix = function(list_of_alt, n){
+
+  #build square matrix of zeros the size of the demensions of your list
   ads_mat = matrix(0, nrow = length(list_of_alt), ncol = length(list_of_alt))
   
   #create dummy row/col headers so that we can dynamically fill it later
@@ -219,7 +222,7 @@ ads_matrix = function(list_of_alt){
       if(i == j){
         ads_mat[i,j] = 0
       } else {
-        ads_mat[i,j] = as.numeric(ads_score(list_of_alt[[i]],list_of_alt[[j]]))
+        ads_mat[i,j] = as.numeric(ads_score(list_of_alt[[i]],list_of_alt[[j]], n))
         colnames(ads_mat)[j] = c(list_of_alt[[j]]$Alternative[1])
       }
     }
@@ -241,12 +244,11 @@ ads_table <- function(dat, alpha, delta) {
   }
   
   # determine sample size needed from Thompson's Method
-  n <- sqrt(thompson_method(alpha, delta))
-
-  # reduce data set down to amount required by Thompson's Method
-  dat <- dat %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
+  n <- thompson_method(alpha, delta)
+  
+  dat <- group_by(dat, Alternative)
   dat_list <- group_split(dat)
-  build_matrix <- ads_matrix(dat_list)
+  build_matrix <- ads_matrix(dat_list, n)
   build_matrix$`Alternative` <- names(build_matrix[1:nrow(build_matrix)])
   build_matrix <- build_matrix[order(-build_matrix$`ADS Score`), , drop = FALSE] %>% 
     select(`Alternative`, everything())
