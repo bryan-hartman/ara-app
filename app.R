@@ -6,6 +6,8 @@ library(stringr)
 library(huxtable)
 library(dtplyr)
 library(shinycssloaders)
+library(directlabels)
+library(sparkline)
 
 source('R/functions.R')
 
@@ -57,7 +59,15 @@ ui <- fluidPage(
                                            plotOutput("Costcdf"),
                                            downloadButton("costcdfpng", "Download")),
                                   tabPanel("Cloud Plots", plotOutput("cloud"),
-                                           downloadButton("cloudpng", "Download")))
+                                           radioButtons("cloud_choice", label = h4("Choose Cloud Plot Type"),
+                                                        choices = list("Default" = 0, "With Legend" = 1), 
+                                                        selected = 0),
+                                           downloadButton("cloudpng", "Download")),
+                                  tabPanel("Deterministic Dominance", 
+                                           selectInput('dom_pair', 'Dominance Pairs', ""),
+                                           plotOutput("domplot"),
+                                           htmlOutput('dom_value')))
+                                           #downloadButton("cloudpng", "Download")))
         ),
       conditionalPanel(condition = "output.status && input.radio == 1",
                        
@@ -153,10 +163,41 @@ server <- function(input, output, session) {
   output$Valhist <- renderPlot({valhist(subset(data(), Alternative %in% input$alternative_select), input$opacity)})
   output$Valcdf <- renderPlot({valcdf(subset(data(), Alternative %in% input$alternative_select))})
   output$Costcdf <- renderPlot({costcdf(subset(data(), Alternative %in% input$alternative_select))})
-  output$cloud <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
-  output$cloud_2 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
-  output$cloud_3 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
-  output$cloud_4 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select))})
+  output$cloud <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
+  output$cloud_2 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
+  output$cloud_3 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
+  output$cloud_4 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
+  
+  # Level 0 Dominance Tab
+  observe({
+    choices <- dominance_check(data())
+    if (length(choices[,1]) > 0){
+       choices <- paste0(choices[,1], " dominates ", choices[,2])
+    } else {
+      choices <- "There are no dominant solutions."
+    }
+    updateSelectInput(session, "dom_pair",choices = choices
+    )})
+  output$domplot <- renderPlot({
+    alt1 <- sub("\\ dominates .*", "", input$dom_pair)
+    alt2 <- sub(".* dominates ", "",  input$dom_pair)
+    dominance_plot(data(), alt1, alt2)
+  })
+  
+  # Output to display Deterministic Domination Likelihood
+  output$dom_value <- renderText({
+    if(input$dom_pair == "There are no dominant solutions."){
+      return("")
+      } else {
+        dominating_alt <- sub("\\ dominates .*", "", input$dom_pair)
+        dominated_alt <-  sub(".* dominates ", "",  input$dom_pair)
+        paste("<font size=\"6 px\"><b>",
+              paste0("Probability that ", dominating_alt," will continue to deterministically dominate ", 
+                     dominated_alt, " is ", round(100*cheb_calc(data(),
+                                                              dominating_alt,
+                                                              dominated_alt,
+                                                              input$samplesize1),2), " percent."),
+                                        "</b></font>")}})
   
   # Level 1 Tab Plots
   output$thompson_value <- renderText({paste(
@@ -234,7 +275,7 @@ server <- function(input, output, session) {
   output$cloudpng <- downloadHandler(
     filename = "cloud.png", 
     content = function(file) {
-      cloud <- cloudplot(subset(data(), Alternative %in% input$alternative_select))
+      cloud <- cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)
       ggsave(file, cloud, width = 10, height = 8)
     }
   )

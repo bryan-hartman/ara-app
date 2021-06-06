@@ -67,26 +67,135 @@ ggplot(dat, aes(Cost, color = Alternative)) +
 }
 
 # Function for Cloud plot
-cloudplot <- function(dat){
+cloudplot <- function(dat, type){
 if (is.null(dat)) {
   return(NULL)
 }
+
   
 means <- dat %>% group_by(Alternative) %>% summarise(mean(Value), mean(Cost))
 colnames(means) <- c("Alternative", "Value", "Cost")
 
-
+if (type == 0){
 ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) + 
   stat_density_2d(geom = "polygon", aes(alpha = ..level.., color = Alternative), contour = TRUE) + 
   geom_point(alpha = .3) +
   geom_point(data=means, color = "black", size = 4.5) +
   geom_point(data=means,  mapping=aes(x = Cost, y = Value), size=3.5)+
-  theme_minimal() + 
-  guides(color = FALSE, alpha = FALSE, fill = guide_legend(override.aes = list(shape = NA)))+
-  theme(panel.border = element_rect(colour = "black", fill = NA, size = 1.15))+ 
+  guides(color = FALSE, alpha = FALSE, fill = FALSE)+
   scale_color_manual(values = c("blue", "brown", "green", "orange","purple","red")) +
-  scale_fill_manual(values = c("blue", "brown", "green", "orange","purple","red"))
+  scale_fill_manual(values = c("blue", "brown", "green", "orange","purple","red")) +
+  theme_tufte(ticks = FALSE, base_size = 15)+
+  geom_dl(aes(label=Alternative),method="smart.grid")
+} else {
+  ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) + 
+    stat_density_2d(geom = "polygon", aes(alpha = ..level.., color = Alternative), contour = TRUE) + 
+    geom_point(alpha = .3) +
+    geom_point(data=means, color = "black", size = 4.5) +
+    geom_point(data=means,  mapping=aes(x = Cost, y = Value), size=3.5)+
+    theme_minimal() + 
+    guides(color = FALSE, alpha = FALSE, fill = guide_legend(override.aes = list(shape = NA)))+
+    theme(panel.border = element_rect(colour = "black", fill = NA, size = 1.15))+ 
+    scale_color_manual(values = c("blue", "brown", "green", "orange","purple","red")) +
+    scale_fill_manual(values = c("blue", "brown", "green", "orange","purple","red"))
 }
+}
+
+# Function for checking pairwise dominance between alternatives
+dominance_check <- function(dat){
+  # This function takes in the full data set with each alternatives value and cost
+  # outputs and iterates through all pairwise comparisons of alternatives to determine
+  # if any alternative fully dominates another alternative. 
+  # The function returns a dataframe with all pairs (dominates, dominated) 
+  
+  # Obtain all unique pairs of alternatives
+  alternatives <- unique(dat$Alternative)
+  alternatives <- combn(alternatives, 2)
+  
+  dominance_pairs <- as.data.frame(matrix(nrow=0, ncol=2))
+  for (i in 1:length(alternatives[1,])){
+    # establish min and max for each alternative 
+    min_val_1 <- min(subset(dat, Alternative==alternatives[1,i])$Value)
+    max_val_1 <- max(subset(dat, Alternative==alternatives[1,i])$Value)
+    min_cost_1 <- min(subset(dat, Alternative==alternatives[1,i])$Cost)
+    max_cost_1 <- max(subset(dat, Alternative==alternatives[1,i])$Cost)
+    min_val_2 <- min(subset(dat, Alternative==alternatives[2,i])$Value)
+    max_val_2 <- max(subset(dat, Alternative==alternatives[2,i])$Value)
+    min_cost_2 <- min(subset(dat, Alternative==alternatives[2,i])$Cost)
+    max_cost_2 <- max(subset(dat, Alternative==alternatives[2,i])$Cost)
+    
+    if (min_val_1 > max_val_2 & max_cost_1 < min_cost_2) {
+      dominance_pairs[nrow(dominance_pairs)+1,] <- c(alternatives[1,i],alternatives[2, i])
+    } else if (min_val_2 > max_val_1 & max_cost_2 < min_cost_1){
+      dominance_pairs[nrow(dominance_pairs)+1,] <- c(alternatives[2,i],alternatives[1, i])
+    }
+  }
+  return(dominance_pairs)
+}
+
+dominance_plot <- function(dat, alt1, alt2){
+  # Do not plot if there are no dominant/dominated pairs
+  if (alt1 == "There are no dominant solutions."){
+    return(FALSE)
+  }
+  dat <- subset(dat, Alternative==alt1 | Alternative==alt2)
+  min_val_1 <- min(subset(dat, Alternative==alt1)$Value)
+  max_val_1 <- max(subset(dat, Alternative==alt1)$Value)
+  min_cost_1 <- min(subset(dat, Alternative==alt1)$Cost)
+  max_cost_1 <- max(subset(dat, Alternative==alt1)$Cost)
+  
+  min_val_2 <- min(subset(dat, Alternative==alt2)$Value)
+  max_val_2 <- max(subset(dat, Alternative==alt2)$Value)
+  min_cost_2 <- min(subset(dat, Alternative==alt2)$Cost)
+  max_cost_2 <- max(subset(dat, Alternative==alt2)$Cost)
+  mean_val_2 <- mean(subset(dat, Alternative==alt2)$Value)
+  mean_cost_2 <- mean(subset(dat, Alternative==alt2)$Cost)
+
+  
+  #plot alternative as points w/ densities
+  dom_plot = ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative))+
+    theme_minimal()+
+    geom_point(alpha = .3)+
+    #add blue lines
+    geom_segment(aes(x = max_cost_1, y = min_val_1, xend = max_cost_2 + 5, yend = min_val_1),color = "blue", size = 1, inherit.aes = FALSE)+
+    geom_segment(aes(x = max_cost_1, y = min_val_1, xend = max_cost_1, yend = min_val_2 - 5), color = "blue", size = 1, inherit.aes = FALSE)+
+    #add black lines
+    geom_hline(yintercept = min_val_1, color = "black", linetype = 2, size = .75)+
+    geom_vline(xintercept = max_cost_1, color = "black", linetype = 2, size = .75)+
+    #add grey lines
+    geom_hline(yintercept = max_val_2, color = "grey", linetype = 2, size = .75)+
+    geom_vline(xintercept = min_cost_2, color = "grey", linetype = 2, size = .75)+
+    #add points
+    geom_point(data = data.frame(Cost = c(max_cost_1, mean_cost_2), Value = c(mean_val_2,min_val_1), Alternative = "black"),
+               size = 4,
+               shape = 1,
+               fill = NA,
+               color = "blue")+
+    scale_fill_manual(values = c("black", "red"))+
+    scale_color_manual(values = c("black", "red"))+
+    geom_dl(aes(label=Alternative),method="last.points")
+  return(dom_plot)
+}
+
+cheb_calc <- function(dat, alt1, alt2, k){
+  alt1 <- subset(dat, Alternative==alt1)
+  alt2 <- subset(dat, Alternative==alt2)
+  
+  x1 <- c(mean(alt2$Cost), min(alt1$Value))
+  x2 <- c(max(alt1$Cost), mean(alt2$Value))
+  col_means <- colMeans(alt2[,2:3])
+  covar <- cov(alt2[,2:3])
+  
+  dist1 <- mahalanobis(x1, col_means, covar)
+  dist2 <- mahalanobis(x2, col_means, covar)
+  
+  min_dist <- min(dist1, dist2)
+  
+  prob <- 1 - min(1, (2*(k^2-1+k*min_dist))/(k^2*min_dist))
+  return(prob)
+}
+
+
 
 ############################
 #Level 1 Analysis
@@ -151,15 +260,11 @@ gen_pareto_table <- function(dat, param1, param2, alpha, delta){
 
 level1 = function(a, b, n){
   #a and b are separate alternatives in tibble/dataframe format with cost and value columns
-  #nSample has a default of 1000, but can be adjusted as desired
-  #function scales well to 1,000,000 samples and still runs (slowly) at 10,000,000
   # Sample the amount needed to implement Thompson's Method
   a <- sample_n(a, n, replace = TRUE)
   b <- sample_n(b, n, replace = TRUE)
   
-  # Merge samples and remove row.names
-  #pairings <- merge(a, b, by=0)
-  #pairings[,1] <- NULL
+  # Merge samples 
   pairings <- as.data.frame(c(a, b))
   colnames(pairings) = c("alt.a","a.value","a.cost","alt.b","b.value","b.cost")
   
@@ -256,7 +361,7 @@ ads_table <- function(dat, alpha, delta) {
 }
 
 #################################
-#####Level 2######VERSION 4
+#####Level 2######
 #################################
 
 level2 = function(a, b, tolerance = .05){
@@ -327,21 +432,11 @@ gen_level2_plot <- function(dat, param1, param2, tolerance){
   if (is.null(dat)) {
     return(NULL)
   }
-  # if (param1 == param2){
-  #   return(text(x = 0.5, y = 0.5, paste("Please select two different alternatives"), 
-  #               cex = 1.6, col = "black"))
-  # }
-  
+
   parameter1 <- subset(dat, Alternative == param1)
   parameter2 <- subset(dat, Alternative == param2)
   hist_plot <- level2(parameter2, parameter1, tolerance)
   
-  # if (hist_plot == FALSE){ 
-  #   return(text(x = 0.5, y = 0.5, paste("Please select appropriate alternatives (trade zone alternative should be 
-  #                                       more expensive and more valuable than the expected value of the compared alternative):"), 
-  #                                      cex = 1.6, col = "black"))
-  # }
-
   hist_rollup <- hist_plot%>%
     select(zoneTest) %>% group_by(zoneTest) %>% 
     summarise(count=n()) %>%
