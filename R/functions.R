@@ -1,5 +1,15 @@
+###############################################################
+# Overall Functions (not specific to Analysis Level (0, 1, 2))#
+###############################################################
 
 # Resample data function
+# This function takes in the initial raw data files, resamples the value and cost
+# measures independently based on the number of resamples selected by the user 
+# (1000 default) and outputs the dataframe used through the rest of the app.
+#
+# Inputs: The initial raw value and cost data, the number of resamples (n), 
+# and the seed (default is 123).
+# Output: The three column (Alternative, Value, Cost) dataframe 
 create_resamples <- function(val, cost, n, seed){
   set.seed(seed)
   values <- val %>% group_by(Alternative) %>% sample_n(n, replace = T) %>% arrange(Alternative)
@@ -7,6 +17,19 @@ create_resamples <- function(val, cost, n, seed){
   data <- data.frame(values, costs[,2])
   colnames(data)[3] <- "Cost"
   return(data)
+}
+
+# Image Download Function
+# The application takes in the file name desired and the function used to generate
+# plot images used within the UI.
+image_save <- function(name, func) {
+  downloadHandler(
+    filename = name, 
+    content = function(file) {
+      save_plot <- func
+      ggsave(file, save_plot, width = 10, height = 8)
+    }
+  )
 }
 
 # Build the pareto front alternatives (returns the front from top to bottom)
@@ -23,6 +46,9 @@ pareto_front <- function(dat){
 
 # Below are the functions for each plot used in the Realization Analysis
 
+#####################################################
+# Level 0 Analysis###################################
+#####################################################
 # Function for Value Histogram
 valhist <- function(dat, alpha) {
   if (is.null(dat)) {
@@ -52,6 +78,8 @@ valcdf <- function(dat){
 }
 
 # Function for Cost CDF plot
+
+# no data = no plot
 costcdf <- function(dat) {
 if (is.null(dat)) {
   return(NULL)
@@ -67,15 +95,23 @@ ggplot(dat, aes(Cost, color = Alternative)) +
 }
 
 # Function for Cloud plot
+# Inputs include the raw data and type of cloud chart selection (default or legend)
+# Output is the gg scatter plot for the alternatives.
+
+# no data = no plot
 cloudplot <- function(dat, type){
 if (is.null(dat)) {
   return(NULL)
 }
 
-  
+# The two lines identify the means for each Alternative, which are included within
+# the plots to better identify centrality of data.
 means <- dat %>% group_by(Alternative) %>% summarise(mean(Value), mean(Cost))
 colnames(means) <- c("Alternative", "Value", "Cost")
 
+# Type 0 is the default plot using embedded alternative labels within scatterplot
+# Type 1 is the optional plot with alternatives within a separate legend.
+# The following code builds both chart types based on the toggle selection in the UI.
 if (type == 0){
 ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) + 
   stat_density_2d(geom = "polygon", aes(alpha = ..level.., color = Alternative), contour = TRUE) + 
@@ -280,11 +316,6 @@ gen_pareto_table <- function(dat, param1, param2, alpha, delta){
                            fnDrawCallback = htmlwidgets::JS('function(){HTMLWidgets.staticRender();}'),
                            dom='t')) %>% spk_add_deps()
   
-  # level1(parameter1, parameter2, n) %>%
-  #   as_huxtable(add_columnnames = TRUE, add_rownames = "Outcome") %>%
-  #   set_font_size(14) %>% 
-  #   set_bold(1, everywhere, TRUE) %>%
-  #   set_all_borders(1)
 }
 
 level1 = function(a, b, n){

@@ -23,12 +23,15 @@ ui <- fluidPage(
   sidebarLayout(
     
     # Sidebar for csv upload and realization analysis level
-    sidebarPanel(fileInput(inputId = "valuedata",
-                             label = "Upload value data here. Choose csv file:",
+    sidebarPanel(downloadButton("download_val_sample", "Sample Value Data"),
+                 fileInput(inputId = "valuedata",
+                             label = "Upload value data here (csv file):",
                              accept = c(".csv")),
+                 downloadButton("download_cost_sample", "Sample Cost Data"),
                  fileInput(inputId = "costdata",
-                           label = "Upload cost data here. Choose csv file:",
+                           label = "Upload cost data here (csv file):",
                            accept = c(".csv")),
+                 
                  numericInput("samplesize1", label = "Set Sample Size",
                               1000, min = 1),
                  numericInput("setseed1", label = "Set Seed Value",
@@ -126,16 +129,38 @@ server <- function(input, output, session) {
 
   # Increase file upload size to 30MB
   options(shiny.maxRequestSize=30*1024^2)
+  
+  # Below asks for importing value and cost data.
+  # Additionally, sample data files from 'www/Data' folder
+  # allow the user to download files to play with tool
   valuedata <- reactive({
     req(input$valuedata)
     read.csv(input$valuedata$datapath)
     })
   
+  output$download_val_sample <- downloadHandler(
+    filename = function() {
+      "value.csv"
+    },
+    content = function(file) {
+      data_needed <- read.csv("www/Data/value.csv")
+      write.csv(data_needed,file,row.names = FALSE)
+    }
+  )
+  
   costdata <- reactive({
     req(input$costdata)
     read.csv(input$costdata$datapath)
   })
-  
+  output$download_cost_sample <- downloadHandler(
+    filename = function() {
+      "cost.csv"
+    },
+    content = function(file) {
+      data_needed <- read.csv("www/Data/cost.csv")
+      write.csv(data_needed,file,row.names = FALSE)
+    }
+  )
   # Merge value and Cost Data through resampling
   data <- reactive(if (is.null(valuedata()) == T || is.null(costdata()) ==T){
     return (FALSE)} else {
@@ -160,15 +185,26 @@ server <- function(input, output, session) {
   output$level <- renderPrint({ input$radio })
   
   # Level 0 Tab Plots
-  output$Valhist <- renderPlot({valhist(subset(data(), Alternative %in% input$alternative_select), input$opacity)})
-  output$Valcdf <- renderPlot({valcdf(subset(data(), Alternative %in% input$alternative_select))})
-  output$Costcdf <- renderPlot({costcdf(subset(data(), Alternative %in% input$alternative_select))})
-  output$cloud <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
-  output$cloud_2 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
-  output$cloud_3 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
-  output$cloud_4 <- renderPlot({cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
+  output$Valhist <- renderPlot({
+    valhist(subset(data(), Alternative %in% input$alternative_select), input$opacity)})
+  output$Valcdf <- renderPlot({
+    valcdf(subset(data(), Alternative %in% input$alternative_select))})
+  output$Costcdf <- renderPlot({
+    costcdf(subset(data(), Alternative %in% input$alternative_select))})
+  output$cloud <- renderPlot({
+    cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
+  
+  # The following three cloud plots are used in the level 1 and level 2 tabs
+  output$cloud_2 <- renderPlot({
+    cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
+  output$cloud_3 <- renderPlot({
+    cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
+  output$cloud_4 <- renderPlot({
+    cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)})
   
   # Level 0 Dominance Tab
+  # This section of code populates the dominance tab options based on 
+  # whether any alternative completely dominates any other 
   observe({
     choices <- dominance_check(data())
     if (length(choices[,1]) > 0){
@@ -178,13 +214,20 @@ server <- function(input, output, session) {
     }
     updateSelectInput(session, "dom_pair",choices = choices
     )})
+  
+  # The following generates the plot on the dominance tab, based off the choice
+  # from the drop down menu above (input$dom_pair alternatives are extracted from
+  # the text, based on the user's selection)
   output$domplot <- renderPlot({
-    alt1 <- sub("\\ dominates .*", "", input$dom_pair)
-    alt2 <- sub(".* dominates ", "",  input$dom_pair)
-    dominance_plot(data(), alt1, alt2)
+    dominating_alt <- sub("\\ dominates .*", "", input$dom_pair)
+    dominated_alt <- sub(".* dominates ", "",  input$dom_pair)
+    dominance_plot(data(), dominating_alt, dominated_alt)
   })
   
   # Output to display Deterministic Domination Likelihood
+  # Based on the user's selection, the two alternatives are passed into the
+  # distance calculation using the function cheb_calc (see functions.R file and
+  # paper for detailed methodology)
   output$dom_value <- renderText({
     if(input$dom_pair == "There are no dominant solutions."){
       return("")
@@ -200,11 +243,14 @@ server <- function(input, output, session) {
                                         "</b></font>")}})
   
   # Level 1 Tab Plots
+  # The following output provides the Sample Size used for level 1 analysis
+  # based on Thompson's Method, described in the paper.
   output$thompson_value <- renderText({paste(
     "<font size=\"6 px\"><b>",
     "Sample Size Needed: ",
     thompson_method(input$sig_level, input$half_width),
     "</b></font>")})
+  
   
   observe({
     choices <- subset(data(), Alternative %in% input$alternative_select)
@@ -247,46 +293,20 @@ server <- function(input, output, session) {
     )
   }, deleteFile = FALSE)
   
-  # Download PNG Buttons
-  output$valuehistpng <- downloadHandler(
-    filename = "valuehist.png", 
-    content = function(file) {
-      valplot <- valhist(subset(data(), Alternative %in% input$alternative_select), input$opacity)
-      ggsave(file, valplot, width = 10, height = 8)
-    }
-  )
-  
-  output$valuecdfpng <- downloadHandler(
-    filename = "valuecdf.png", 
-    content = function(file) {
-      valcdfplot <- valcdf(subset(data(), Alternative %in% input$alternative_select))
-      ggsave(file, valcdfplot, width = 10, height = 8)
-    }
-  )
-  
-  output$costcdfpng <- downloadHandler(
-    filename = "costcdf.png", 
-    content = function(file) {
-      costcdfplot <- costcdf(subset(data(), Alternative %in% input$alternative_select))
-      ggsave(file, costcdfplot, width = 10, height = 8)
-    }
-  )
-  
-  output$cloudpng <- downloadHandler(
-    filename = "cloud.png", 
-    content = function(file) {
-      cloud <- cloudplot(subset(data(), Alternative %in% input$alternative_select),input$cloud_choice)
-      ggsave(file, cloud, width = 10, height = 8)
-    }
-  )
-  
-  output$level2png <- downloadHandler(
-    filename = "level2.png", 
-    content = function(file) {
-      lvl2 <- gen_level2_plot(data(), input$alt1_2, input$alt2_2)
-      ggsave(file, lvl2, width = 10, height = 8)
-    }
-  )
+  # Download PNG Buttons for downloading charts.
+  # The image_save function is located in the 'functions.R' file
+  output$valuehistpng <- image_save("valuehist.png", valhist(subset(data(), 
+                                                      Alternative %in% input$alternative_select), 
+                                                      input$opacity))
+  output$valuecdfpng <- image_save("valuecdf.png", valcdf(subset(data(), 
+                                                    Alternative %in% input$alternative_select)))
+  output$costcdfpng <- image_save("costcdf.png", costcdf(subset(data(), 
+                                                 Alternative %in% input$alternative_select)))
+  output$cloudpng <- image_save("cloud.png", cloudplot(subset(data(), 
+                                                 Alternative %in% input$alternative_select),
+                                                 input$cloud_choice))
+  output$level2png <- image_save("level2.png", gen_level2_plot(data(), input$alt1_2, input$alt2_2))
+
   
   # Condition that hides panels until data is loaded
   output$status <- reactive(if (is.null(valuedata()) || is.null(costdata())) {
