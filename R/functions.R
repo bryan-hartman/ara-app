@@ -251,11 +251,40 @@ gen_pareto_table <- function(dat, param1, param2, alpha, delta){
   # determine sample size needed from Thompson's Method
   n <- thompson_method(alpha, delta)
   
-  level1(parameter1, parameter2, n) %>%
-    as_huxtable(add_columnnames = TRUE, add_rownames = "Outcome") %>%
-    set_font_size(14) %>% 
-    set_bold(1, everywhere, TRUE) %>%
-    set_all_borders(1)
+  convergence_storage <- as.data.frame(matrix(nrow=0, ncol=4))
+  for (i in seq(1, n, ceiling(n/50))){
+    results <- level1(parameter1, parameter2, i)
+    convergence_storage[nrow(convergence_storage)+1,] <- results$Percent
+  }
+  
+  convergence_storage2 <- as.data.frame(matrix(nrow=0, ncol=4))
+  for (i in (n-30):n){
+    results2 <- level1(parameter1, parameter2, i)
+    convergence_storage2[nrow(convergence_storage2)+1,] <- results2$Percent
+  }
+  table <- level1(parameter1, parameter2, n)
+  
+  table$`Min % of Last 30 Sample Sizes` <- c(min(convergence_storage2[,1]),min(convergence_storage2[,2]),
+                                             min(convergence_storage2[,3]),min(convergence_storage2[,4]))
+  table$`Max % of Last 30 Sample Sizes` <- c(max(convergence_storage2[,1]),max(convergence_storage2[,2]),
+                                             max(convergence_storage2[,3]),max(convergence_storage2[,4]))
+  
+  table$`Convergence: % From Size = 1 to Size = N` <- c(0, 0, 0, 0)
+  table$`Convergence: % From Size = 1 to Size = N`[1] <- spk_chr(convergence_storage[,1], spotColor=FALSE)#, chartRangeMin=min(convergence_storage[,1]), chartRangeMax=max(convergence_storage[,1]))
+  table$`Convergence: % From Size = 1 to Size = N`[2] <- spk_chr(convergence_storage[,2], spotColor=FALSE)#, chartRangeMin=min(convergence_storage[,2]), chartRangeMax=max(convergence_storage[,2]))
+  table$`Convergence: % From Size = 1 to Size = N`[3] <- spk_chr(convergence_storage[,3], spotColor=FALSE)#, chartRangeMin=min(convergence_storage[,3]), chartRangeMax=max(convergence_storage[,3]))
+  table$`Convergence: % From Size = 1 to Size = N`[4] <- spk_chr(convergence_storage[,4], spotColor=FALSE)#, chartRangeMin=min(convergence_storage[,4]), chartRangeMax=max(convergence_storage[,4]))
+
+  datatable(table, escape = F,
+            options = list(columnDefs = list(list(className = 'dt-center', targets = 0:5)),
+                           fnDrawCallback = htmlwidgets::JS('function(){HTMLWidgets.staticRender();}'),
+                           dom='t')) %>% spk_add_deps()
+  
+  # level1(parameter1, parameter2, n) %>%
+  #   as_huxtable(add_columnnames = TRUE, add_rownames = "Outcome") %>%
+  #   set_font_size(14) %>% 
+  #   set_bold(1, everywhere, TRUE) %>%
+  #   set_all_borders(1)
 }
 
 level1 = function(a, b, n){

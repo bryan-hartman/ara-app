@@ -8,6 +8,7 @@ library(dtplyr)
 library(shinycssloaders)
 library(directlabels)
 library(sparkline)
+library(DT)
 
 source('R/functions.R')
 
@@ -83,11 +84,10 @@ ui <- fluidPage(
                                                          .005, min = .0001, max = 1),
                                             htmlOutput('thompson_value')),
                                    tabPanel("Pairwise Comparison", 
-                                                            selectInput('alt1', 'Alternative 1', ""),
-                                                            selectInput('alt2', 'Alternative 2', ""),
-                                   tableOutput("pareto_table"),
-                                   fluidRow(column(9,plotOutput("cloud_2")))),
-                                            #downloadButton("valuehistpng", "Download"))
+                                            selectInput('alt1', 'Alternative 1', ""),
+                                            selectInput('alt2', 'Alternative 2', ""),
+                                            dataTableOutput("pareto_table"),
+                                            fluidRow(column(9,plotOutput("cloud_2")))),
                                    tabPanel("Average Dominance Score", 
                                             withSpinner(tableOutput("ads_table"),type=5),
                                             fluidRow(column(9,plotOutput("cloud_3"))))
@@ -215,7 +215,7 @@ server <- function(input, output, session) {
     updateSelectInput(session, "alt2",choices = unique(choices$Alternative),
                     selected = unique(data()$Alternative)[[2]])
   })
-  output$pareto_table <- renderTable({gen_pareto_table(subset(data(), Alternative %in% input$alternative_select), input$alt1, input$alt2, 
+  output$pareto_table <- renderDataTable({gen_pareto_table(subset(data(), Alternative %in% input$alternative_select), input$alt1, input$alt2, 
                                                        input$sig_level, input$half_width)},
       colnames = FALSE)
   output$ads_table <- renderTable({ads_table(subset(data(), Alternative %in% input$alternative_select),
