@@ -23,15 +23,16 @@ ui <- fluidPage(
   sidebarLayout(
     
     # Sidebar for csv upload and realization analysis level
-    sidebarPanel(downloadButton("download_val_sample", "Sample Value Data"),
-                 fileInput(inputId = "valuedata",
+    sidebarPanel(fileInput(inputId = "valuedata",
                              label = "Upload value data here (csv file):",
                              accept = c(".csv")),
-                 downloadButton("download_cost_sample", "Sample Cost Data"),
+                 
                  fileInput(inputId = "costdata",
                            label = "Upload cost data here (csv file):",
                            accept = c(".csv")),
-                 
+                 htmlOutput("download_option"),
+                 downloadButton("download_val_sample", "Sample Value Data"),
+                 downloadButton("download_cost_sample", "Sample Cost Data"),
                  numericInput("samplesize1", label = "Set Sample Size",
                               1000, min = 1),
                  numericInput("setseed1", label = "Set Seed Value",
@@ -137,7 +138,7 @@ server <- function(input, output, session) {
     req(input$valuedata)
     read.csv(input$valuedata$datapath)
     })
-  
+  output$download_option <- renderText({"<b>Sample Data:</b>"})
   output$download_val_sample <- downloadHandler(
     filename = function() {
       "value.csv"
