@@ -65,7 +65,7 @@ ui <- fluidPage(
                                            downloadButton("costcdfpng", "Download")),
                                   tabPanel("Cloud Plots", plotOutput("cloud"),
                                            radioButtons("cloud_choice", label = h4("Choose Cloud Plot Type"),
-                                                        choices = list("Default" = 0, "With Legend" = 1), 
+                                                        choices = list("Default" = 0, "Embedded Legend" = 1), 
                                                         selected = 0),
                                            downloadButton("cloudpng", "Download")),
                                   tabPanel("Deterministic Dominance", 
@@ -104,20 +104,22 @@ ui <- fluidPage(
                        # Level 2 Analysis Tabs
                        tabsetPanel(type = "tabs",
                                    tabPanel("Trade zones",
-                                            selectInput('alt1_2', 'Specify Trade Zone Alternative', ""),
+                                            fluidRow(column(6,selectInput('alt1_2', 'Specify Trade Zone Alternative', ""),
                                             selectInput('alt2_2', 'In Relation to the Expected Value of which Alternative', ""),
-                                            sliderInput("delta_parameter", "Set the Delta Parameter Level (between 0 and 1):",
-                                                        min = 0, max = 1,
-                                                        value = .05),
-                                            htmlOutput('delta_value'),
-                                            # numericInput("delta_parameter", label = "Delta Parameter (enter value greater than or equal to 0)",
-                                            #              .05, min = 0),
+                                            radioButtons("delta", label = h4("Set Delta:"),
+                                                         choices = list("Set Delta by Percentage:" = 0, "Set Delta by Budget Limit:" = 1), 
+                                                         selected = 0),
+                                            conditionalPanel(condition="input.delta == 0",numericInput("delta_parameter", label = "Delta Parameter Percentage",
+                                                         .05, min = 0, step=.01)),
+                                            conditionalPanel(condition="input.delta == 1",numericInput("delta_value", label = "Budget Limit",
+                                                         "", min = 0, step=1))),
+                                            column(6,plotOutput("cloud_4"))),
+
                                             fluidRow( 
-                                                     column(9,plotOutput("level2_trade")),
-                                                     column(3,plotOutput("image"))
+                                                     column(6,plotOutput("level2_trade")),
+                                                     column(6,plotOutput("level2_dynamic"))
                                                      ),
-                                            downloadButton("level2png", "Download"),
-                                            fluidRow(column(9,plotOutput("cloud_4"))))
+                                            downloadButton("level2png", "Download"))
                        )
       )
       )
@@ -269,8 +271,12 @@ server <- function(input, output, session) {
                                              input$sig_level, input$half_width)})
   
   # Level 2 Tab Plots
-  output$delta_value <- renderText({paste("<font size=\"6 px\"><b>","Cost Delta Value = ",round(delta_value(data(), input$alt1_2, 
-                                                input$delta_parameter),2),"</b></font>")})
+  observe({
+    updateNumericInput(session, "delta_value",
+                         value = delta_value(data(), input$alt1_2, .05))
+    })
+  
+  
   observe({
     pareto <- pareto_front(data())
     updateSelectInput(session, "alt1_2",choices = pareto[1:(length(pareto)-1)]
@@ -281,10 +287,28 @@ server <- function(input, output, session) {
     updateSelectInput(session, "alt2_2",choices = pareto)
   })
   
-  output$level2_trade <- renderPlot({gen_level2_plot(data(), input$alt1_2, 
-                                                     pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
-                                                     tolerance = input$delta_parameter)})
-
+  output$level2_trade <- renderPlot({
+    if(input$delta == 0){gen_level2_plot(data(), input$alt1_2,
+                                         pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
+                                         tolerance = input$delta_parameter)
+    } else {
+      gen_level2_plot(data(), input$alt1_2,
+                      pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
+                      tolerance = delta_param(data(),input$alt1_2,input$delta_value))
+      }
+    })
+  output$level2_dynamic <- renderPlot({
+    if(input$delta == 0){
+    dynamic_level2(data(), input$alt1_2, 
+                   pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
+                   delta_value(data(), input$alt1_2, 
+                               input$delta_parameter))
+    } else {
+      dynamic_level2(data(), input$alt1_2, 
+                     pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
+                     input$delta_value)
+    }
+    })
   output$image <- renderImage({
     filename <- normalizePath(file.path(paste0('www/level_2.png')))
     list(

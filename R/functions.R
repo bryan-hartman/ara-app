@@ -109,10 +109,10 @@ if (is.null(dat)) {
 means <- dat %>% group_by(Alternative) %>% summarise(mean(Value), mean(Cost))
 colnames(means) <- c("Alternative", "Value", "Cost")
 
-# Type 0 is the default plot using embedded alternative labels within scatterplot
-# Type 1 is the optional plot with alternatives within a separate legend.
+# Type 0 is the default plot using a separate legend. 
+# Type 1 is the optional plot with embedded alternative labels within scatterplot
 # The following code builds both chart types based on the toggle selection in the UI.
-if (type == 0){
+if (type == 1){
 ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) + 
   stat_density_2d(geom = "polygon", aes(alpha = ..level.., color = Alternative), contour = TRUE) + 
   geom_point(alpha = .3) +
@@ -531,7 +531,102 @@ gen_level2_plot <- function(dat, param1, param2, tolerance){
 # return the delta value associated with the delta parameter
 delta_value = function(dat, param1, tolerance = .05){
   b <- subset(dat, Alternative == param1)
-
-  delta_val = mean(b$Cost)*(tolerance)
+  delta_val = round(mean(b$Cost)*(1+tolerance),2)
   return(delta_val)
   }
+
+delta_param = function(dat, param1, dv){
+  b <- subset(dat, Alternative == param1)
+  delta_p <- dv/mean(b$Cost)-1
+  return(delta_p)
+}
+
+dynamic_level2 <- function(dat, alt1, alt2, delta){
+  mean.alt = dat %>% group_by(Alternative) %>% summarise_all(mean)
+  
+  # Parameters to set in the tool
+  v_dist <- mean.alt[mean.alt$Alternative==alt1,]$Value-mean.alt[mean.alt$Alternative==alt2,]$Value
+  h_dist <- mean.alt[mean.alt$Alternative==alt1,]$Cost-mean.alt[mean.alt$Alternative==alt2,]$Cost
+  m_dist <- max(v_dist, h_dist)
+  
+  # Center point for each expected value
+  center2 <- c(mean.alt[mean.alt$Alternative==alt2,]$Cost,mean.alt[mean.alt$Alternative==alt2,]$Value)
+  center1 <- c(mean.alt[mean.alt$Alternative==alt1,]$Cost,mean.alt[mean.alt$Alternative==alt1,]$Value)
+  
+  d_val <- delta
+  slope_ev <- (mean.alt[mean.alt$Alternative==alt1,]$Value-mean.alt[mean.alt$Alternative==alt2,]$Value) /
+    (mean.alt[mean.alt$Alternative==alt1,]$Cost-mean.alt[mean.alt$Alternative==alt2,]$Cost)
+  slope_budget <- (mean.alt[mean.alt$Alternative==alt1,]$Value-mean.alt[mean.alt$Alternative==alt2,]$Value) /
+    (d_val-mean.alt[mean.alt$Alternative==alt2,]$Cost)
+  
+  #define zones
+  zone1 <- data.frame(Alternative = alt1, 
+                      Cost = c( center2[1]-20*m_dist, center2[1]-20*m_dist, 
+                                center2[1], center2[1]),
+                      Value = c(center2[2], center2[2]+20*m_dist, 
+                                center2[2]+20*m_dist, center2[2]))
+  zone2 <- data.frame(Alternative = alt1, 
+                      Cost = c(center2[1], center2[1], center2[1] + (20*v_dist)/slope_ev),
+                      Value = c(center2[2], center2[2]+20*v_dist, center2[2]+(20*h_dist)*slope_ev))
+  zone3 <- data.frame(Alternative = alt1, 
+                      Cost = c(center2[1], center2[1] + (20*v_dist)/slope_ev, 
+                               center2[1]+20*(d_val-center2[1])),
+                      Value = c(center2[2], center2[2]+(20*h_dist)*slope_ev, 
+                                center2[2]+20*slope_budget*(d_val-center2[1])))
+  zone4 <- data.frame(Alternative = alt1, 
+                      Cost = c(center2[1], center2[1]+20*(d_val-center2[1]), d_val + (20*h_dist)),
+                      Value = c(center2[2], center2[2]+20*slope_budget*(d_val-center2[1]), center2[2]))
+  zone6 <- data.frame(Alternative = alt1, 
+                      Cost = c(center2[1], d_val+20*h_dist, 
+                               d_val+20*h_dist, center2[1]),
+                      Value = c(center2[2], center2[2], 
+                                center2[2]-20*v_dist, center2[2]-20*v_dist))
+  zone5 <- data.frame(Alternative = alt1, 
+                      Cost = c(center2[1], center2[1]-20*h_dist, 
+                               center2[1]-20*h_dist,center2[1]),
+                      Value = c(center2[2], center2[2], 
+                                center2[2]-20*v_dist, center2[2]-20*v_dist))
+  
+  ggplot(data = dat %>% filter(Alternative %in% c(alt1)), aes(Cost, Value, color = Alternative, label = Alternative))+
+    geom_point(colour = "grey70")+
+    #add polygons
+    geom_polygon(data = zone1, aes(Cost, Value), fill = 'green4', alpha = .25)+
+    geom_polygon(data = zone2, aes(Cost, Value), fill = 'green2', alpha = .25)+
+    geom_polygon(data = zone3, aes(Cost, Value), fill = 'yellow2', alpha = .25)+
+    geom_polygon(data = zone4, aes(Cost, Value), fill = 'orange', alpha = .25)+
+    geom_polygon(data = zone6, aes(Cost, Value), fill = 'red2', alpha = .25)+
+    geom_polygon(data = zone5, aes(Cost, Value), fill = 'red4', alpha = .25)+
+    #budget limit
+    geom_vline(xintercept = d_val, color = "red", linetype = 2)+
+    annotate("text", label = "Budget Limit", x = 1.0005*d_val, y = center2[2]-.5*v_dist, color = "red", size = 4)+
+    #add zone labels
+    annotate("text", label = "Zone 1", x = center2[1]-2*h_dist, y = center2[2]+3*v_dist, size = 4, hjust = 0)+
+    annotate("text", label = "Zone 2", x = 1.005*center2[1], y = center2[2]+3*v_dist, size = 4, hjust = 0)+
+    annotate("text", label = "Zone 3", x = center2[1] + (3*v_dist)/slope_ev, y = center2[2]+3*v_dist, size = 4, hjust = 0)+
+    annotate("text", label = "Zone 4", x = d_val+3*h_dist, y = 1.005*center2[2], size = 4, hjust = 1, vjust = 0)+
+    annotate("text", label = "Zone 5", x = center2[1]-2*h_dist, y = center2[2]-2*v_dist, size = 4, hjust = 0)+
+    annotate("text", label = "Zone 6", x = 1.005*center2[1], y = center2[2]-2*v_dist, size = 4, hjust = 0)+
+    theme_minimal()+
+    coord_fixed(xlim = c(center2[1]-2*m_dist, d_val+3*m_dist), 
+                ylim = c(center2[2]-2*m_dist, center2[2]+3*m_dist))+
+    theme(panel.border = element_rect(colour = "black", fill = NA, size = 1.15))+
+    #add zone lines
+    geom_segment(aes(x = center2[1], y = center2[2]-5*v_dist, xend = center2[1], yend = center2[2]+5*v_dist),color = "black", linetype = 1)+
+    geom_segment(aes(x = center2[1]-4*h_dist, y = center2[2], xend = center2[1]+8*h_dist, yend = center2[2]),color = "black", linetype = 1)+
+    #line from E[B] to delta/budget limit
+    geom_segment(aes(x = center2[1], y = center2[2], xend = center2[1]+5*(d_val-center2[1]), 
+                     yend = center2[2]+5*slope_budget*(d_val-center2[1])),color = "black", linetype = 1)+
+    #delta line
+    geom_segment(aes(x = center1[1], y = center1[2], xend = d_val, yend = center1[2]),color = "black", linetype = 2, arrow = arrow(type = "closed", length = unit(0.1, "inches")))+
+    #annotate("text", label = expression(Delta), x = 71, y = 75.2, size = 4)+
+    #line from E[B] to E[G]
+    geom_segment(aes(x = center2[1], y = center2[2], xend = center2[1]+5*h_dist, 
+                     yend = center2[2]+5*slope_ev*h_dist),color = "black", linetype = 1)+
+    geom_point(aes(x = center2[1], center2[2]), colour = "black", size = 8)+
+    geom_point(aes(x = center1[1], center1[2]), colour = "gray", size = 8)+
+    annotate("text", label = "E[2]", x = center2[1], y = center2[2], color = "white", size = 3)+
+    annotate("text", label = "E[1]", x = center1[1], y = center1[2], color = "black", size = 3)+
+    scale_color_manual(values = c("black", "gray", "gray"))+
+    labs(x = "Cost", y = "Value")+
+    guides(color = FALSE, alpha = FALSE, size = FALSE)
+}
