@@ -33,7 +33,7 @@ ui <- fluidPage(
                  htmlOutput("download_option"),
                  downloadButton("download_val_sample", "Sample Value Data"),
                  downloadButton("download_cost_sample", "Sample Cost Data"),
-                 numericInput("samplesize1", label = "Set Sample Size",
+                 numericInput("samplesize1", label = "Set Sample Size for Number of Alternative (Cost, Value) Pairs",
                               1000, min = 1),
                  numericInput("setseed1", label = "Set Seed Value",
                               123, min=1),
@@ -250,7 +250,7 @@ server <- function(input, output, session) {
   # based on Thompson's Method, described in the paper.
   output$thompson_value <- renderText({paste(
     "<font size=\"6 px\"><b>",
-    "Sample Size Needed: ",
+    "Sample Size Needed to Ensure Pairwise Comparison %s are Within Delta of Their Actual Values: ",
     thompson_method(input$sig_level, input$half_width),
     "</b></font>")})
   

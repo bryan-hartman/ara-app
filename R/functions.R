@@ -55,11 +55,12 @@ valhist <- function(dat, alpha) {
     return(NULL)
   }
   ggplot(dat, aes(x=Value, fill=Alternative)) +
-    theme_classic() +
+    theme_minimal() +
     geom_histogram(alpha = alpha, position = "identity", binwidth = .25, col = "black") +
     scale_color_manual(values = c("blue", "brown", "green", "orange","purple","red"))+
     scale_fill_manual(values = c("blue", "brown", "green", "orange","purple","red")) + 
     labs(title = "Value Histogram") + 
+    ylab("Count")+
     theme(plot.title = element_text(hjust = 0.5))
 }
 
@@ -121,7 +122,7 @@ ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) +
   guides(color = FALSE, alpha = FALSE, fill = FALSE)+
   scale_color_manual(values = c("blue", "brown", "green", "orange","purple","red")) +
   scale_fill_manual(values = c("blue", "brown", "green", "orange","purple","red")) +
-  theme_tufte(ticks = FALSE, base_size = 15)+
+  theme_tufte(ticks = FALSE, base_size = 15, base_family = "Arial")+
   geom_dl(aes(label=Alternative),method="smart.grid")
 } else {
   ggplot(dat, aes(Cost, Value, color = Alternative, fill = Alternative)) + 
