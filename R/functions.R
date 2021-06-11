@@ -427,7 +427,6 @@ ads_table <- function(dat, alpha, delta) {
     select(`Alternative`, everything())
   
   # Reorder columns for symmetry
-  reord <- build_matrix$Alternative
   new_mat <- build_matrix[,build_matrix$Alternative]
   full_mat <- cbind(build_matrix[,1], new_mat, build_matrix[,length(build_matrix)])
   return(full_mat)
