@@ -393,10 +393,12 @@ ads_matrix = function(list_of_alt, n){
       } 
     }
     for (j in 1:i){
-      if(i == j) {ads_mat[i,j] = 0} else {
-      # matrix is anti-symmatric
-      ads_mat[i, j] <- -ads_mat[j, i]
-      colnames(ads_mat)[j] = c(list_of_alt[[j]]$Alternative[1])
+      if(i == j) {
+        ads_mat[i,j] = 0
+        } else {
+        # matrix is anti-symmatric
+        ads_mat[i, j] <- -ads_mat[j, i]
+        colnames(ads_mat)[j] = c(list_of_alt[[j]]$Alternative[1])
       }
     }
   }
@@ -437,9 +439,11 @@ ads_table <- function(dat, alpha, delta) {
 #################################
 
 level2 = function(a, b, tolerance = .05){
-  #a and b are separate alternatives in tibble/dataframe format with cost and value columns
-  #b is the chosen alternative and a is the competitor with LOWER value
-  #tolerance is the percentage less expected value the DM would be ok with at the expected cost
+  # a and b are separate alternatives in tibble/dataframe format with cost and value columns
+  # b is the chosen alternative 
+  # a may be pareto(-) in relation to b or pareto(+). 
+  # Neither alternative expected value dominates the other.
+  # tolerance is the percentage less expected value the DM would be ok with at the expected cost
   
   b.value.mean = mean(b$Value)
   b.cost.mean = mean(b$Cost)
@@ -447,41 +451,71 @@ level2 = function(a, b, tolerance = .05){
   a.cost.mean = mean(a$Cost)
   
   # alternative b should have greater value and greater cost
-  if (a.value.mean > b.value.mean || a.cost.mean > b.cost.mean){
-      return(FALSE)
-  }
-  
-  
-  #trade1 is the value/cost trade-off that you are considering
-  trade1 = (b.value.mean - a.value.mean)/(b.cost.mean - a.cost.mean)
-  
-  #trade2 is the point at which you would no longer make the value/cost trade off and go with the cheaper alternative
-  #This is the minimum acceptable trade ... default at 5% less than expected mean
-  trade2 = ((b.value.mean) - a.value.mean)/(b.cost.mean*(1+tolerance) - a.cost.mean)
+  if (a.value.mean > b.value.mean && a.cost.mean > b.cost.mean){
+      # a is pareto(+) in relation to b
 
-  #bind alternatives for computation
-  pairings = tibble(a.value = a.value.mean, a.cost = a.cost.mean, b.value = b$Value, b.cost = b$Cost)
-  
-  #compute Zone 6 - Trade worse than expected - Pareto Optimal but worse than A
-  pairings = mutate(pairings, zone6 = if_else((pairings$b.value < a.value.mean & pairings$b.cost > a.cost.mean), 1, 0)) 
-  #compute Zone 5 - Trade much worse than expected - B dominated by A
-  pairings = mutate(pairings, zone5 = if_else(pairings$b.value < a.value.mean & pairings$b.cost < a.cost.mean, 1, 0)) 
-  #compute Zone 4 - Trade worse than expected - Unacceptable
-  pairings = mutate(pairings, zone4 = if_else((pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade2 & 
-                                                pairings$b.value > a.value.mean & pairings$b.cost > a.cost.mean &
-                                                zone6 < 1 & zone5 < 1, 1, 0))
-  #compute Zone 3 - Trade worse than expected - Acceptable
-  pairings = mutate(pairings, zone3 = if_else(trade2 < (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) & 
-                                                (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade1 &
-                                                zone6 < 1 & zone5 < 1, 1, 0))
-  #compute Zone 2 - Trade better than expected
-  pairings = mutate(pairings, zone2 = if_else((pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) > trade1 & 
-                                                pairings$b.cost > a.cost.mean, 1, 0))
-  #compute Zone 1 - Trade better than expected - B dominates A
-  pairings = mutate(pairings, zone1 = if_else(pairings$b.value > a.value.mean & pairings$b.cost < a.cost.mean, 1, 0))
-  
-  
-  
+      #trade1 is the value/cost trade-off that you are considering
+      trade1 = (a.value.mean - b.value.mean)/(a.cost.mean - b.cost.mean)
+    
+      #trade2 is the point at which you would no longer make the value/cost trade off and go with the cheaper alternative
+      trade2 = ((a.value.mean) - b.value.mean)/(a.cost.mean + (a.cost.mean - b.cost.mean)*.5 - b.cost.mean)
+    
+      #bind alternatives for computation
+      pairings = tibble(a.value = a.value.mean, a.cost = a.cost.mean, b.value = b$Value, b.cost = b$Cost)
+    
+      #compute Zone 6 - Trade much worse than expected - A dominates B
+      pairings = mutate(pairings, zone6 = if_else((pairings$b.value < a.value.mean & pairings$b.cost > a.cost.mean), 1, 0)) 
+      #compute Zone 5 - Trade worse than expected - B is pareto(+) compared to A, but contradicts decision to select B
+      pairings = mutate(pairings, zone5 = if_else(pairings$b.value > a.value.mean & pairings$b.cost > a.cost.mean, 1, 0)) 
+      #compute Zone 4 - Trade worse than expected - Unacceptable
+      pairings = mutate(pairings, zone4 = if_else((a.value.mean-pairings$b.value)/(a.cost.mean-pairings$b.cost) > trade2 & 
+                                                    pairings$b.value < a.value.mean & pairings$b.cost < a.cost.mean &
+                                                    zone5 < 1 & zone6 < 1, 1, 0))
+      #compute Zone 3 - Trade worse than expected - Acceptable
+      pairings = mutate(pairings, zone3 = if_else((a.value.mean-pairings$b.value)/(a.cost.mean-pairings$b.cost) < trade2 & 
+                                                    (a.value.mean-pairings$b.value)/(a.cost.mean-pairings$b.cost) < trade1 &
+                                                    zone5 < 1 & zone6 < 1, 1, 0))
+      #compute Zone 2 - Trade better than expected
+      pairings = mutate(pairings, zone2 = if_else((a.value.mean-pairings$b.value)/(a.cost.mean-pairings$b.cost) > trade1 & 
+                                                    pairings$b.value < a.value.mean, 1, 0))
+      #compute Zone 1 - Trade better than expected - B dominates A
+      pairings = mutate(pairings, zone1 = if_else(pairings$b.value > a.value.mean & pairings$b.cost < a.cost.mean, 1, 0))
+
+  } else if (b.value.mean > a.value.mean && b.cost.mean > a.cost.mean){
+      # a is pareto(-) in relation to b
+    
+      #trade1 is the value/cost trade-off that you are considering
+      trade1 = (b.value.mean - a.value.mean)/(b.cost.mean - a.cost.mean)
+    
+      #trade2 is the point at which you would no longer make the value/cost trade off and go with the cheaper alternative
+      #This is the minimum acceptable trade ... default at 5% less than expected mean
+      trade2 = ((b.value.mean) - a.value.mean)/(b.cost.mean*(1+tolerance) - a.cost.mean)
+    
+      #bind alternatives for computation
+      pairings = tibble(a.value = a.value.mean, a.cost = a.cost.mean, b.value = b$Value, b.cost = b$Cost)
+      
+      #compute Zone 6 - Trade much worse than expected - A dominates B
+      pairings = mutate(pairings, zone6 = if_else((pairings$b.value < a.value.mean & pairings$b.cost > a.cost.mean), 1, 0)) 
+      #compute Zone 5 - Trade worse than expected - B is pareto(-) to A
+      pairings = mutate(pairings, zone5 = if_else(pairings$b.value < a.value.mean & pairings$b.cost < a.cost.mean, 1, 0)) 
+      #compute Zone 4 - Trade worse than expected - Unacceptable
+      pairings = mutate(pairings, zone4 = if_else((pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade2 & 
+                                                    pairings$b.value > a.value.mean & pairings$b.cost > a.cost.mean &
+                                                    zone6 < 1 & zone5 < 1, 1, 0))
+      #compute Zone 3 - Trade worse than expected - Acceptable
+      pairings = mutate(pairings, zone3 = if_else(trade2 < (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) & 
+                                                    (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade1 &
+                                                    zone6 < 1 & zone5 < 1, 1, 0))
+      #compute Zone 2 - Trade better than expected
+      pairings = mutate(pairings, zone2 = if_else((pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) > trade1 & 
+                                                    pairings$b.cost > a.cost.mean, 1, 0))
+      #compute Zone 1 - Trade better than expected - B dominates A
+      pairings = mutate(pairings, zone1 = if_else(pairings$b.value > a.value.mean & pairings$b.cost < a.cost.mean, 1, 0))
+      
+
+  } else {
+    return(FALSE)
+  }
   #Compute zones in place in single column named zoneTest for histogram building
   pairings = mutate(pairings, zoneTest = if_else(zone1 == 1, 1, 
                                                  if_else(zone2 == 1, 2, 
@@ -493,8 +527,6 @@ level2 = function(a, b, tolerance = .05){
                                                  )#end zone 2               
   )#end zone 1  
   )#close zoneTest mutate
-  
-
   return(pairings)
 }
 
