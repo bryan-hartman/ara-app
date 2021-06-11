@@ -281,6 +281,7 @@ thompson_method = function(alpha, delta) {
 
 
 # Function for Table generation
+# This function generates the pareto table used within level 1 analysis.
 gen_pareto_table <- function(dat, param1, param2, alpha, delta){
   if (is.null(dat)) {
     return(NULL)
@@ -537,8 +538,10 @@ level2 = function(a, b, tolerance = .05){
   return(pairings)
 }
 
-####Level 2 Plot#########
-# Function for Value CDF plot
+####Level 2 Histogram Plot#########
+# This function generates the level 2 histogram found on the trade zones
+# tab within level 2. It leverages the level2 function to determine
+# the trade zone counts and displays the breakdown in a histogram.
 gen_level2_plot <- function(dat, param1, param2, tolerance){
   if (is.null(dat)) {
     return(NULL)
@@ -592,6 +595,13 @@ delta_param = function(dat, param1, dv){
   return(delta_p)
 }
 
+####Level 2 Dynamic Detailed Plot#########
+# This function takes in the delta parameter selected by the user in the trade
+# zone tab in the level 2 analysis and returns a plot that shows the realizations
+# of the selected alternative displayed within each trade zone.
+
+# Currently, this plot is only built to examine a selected alternative that
+# is pareto(+) in comparison to the compared alternative.
 dynamic_level2 <- function(dat, alt1, alt2, delta){
   mean.alt = dat %>% group_by(Alternative) %>% summarise_all(mean)
   
