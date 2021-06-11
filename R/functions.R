@@ -307,10 +307,10 @@ gen_pareto_table <- function(dat, param1, param2, alpha, delta){
                                              max(convergence_storage2[,3]),max(convergence_storage2[,4]))
   
   table$`Convergence: % From Size = 1 to Size = N` <- c(0, 0, 0, 0)
-  table$`Convergence: % From Size = 1 to Size = N`[1] <- spk_chr(convergence_storage[,1], spotColor=FALSE)#, chartRangeMin=min(convergence_storage[,1]), chartRangeMax=max(convergence_storage[,1]))
-  table$`Convergence: % From Size = 1 to Size = N`[2] <- spk_chr(convergence_storage[,2], spotColor=FALSE)#, chartRangeMin=min(convergence_storage[,2]), chartRangeMax=max(convergence_storage[,2]))
-  table$`Convergence: % From Size = 1 to Size = N`[3] <- spk_chr(convergence_storage[,3], spotColor=FALSE)#, chartRangeMin=min(convergence_storage[,3]), chartRangeMax=max(convergence_storage[,3]))
-  table$`Convergence: % From Size = 1 to Size = N`[4] <- spk_chr(convergence_storage[,4], spotColor=FALSE)#, chartRangeMin=min(convergence_storage[,4]), chartRangeMax=max(convergence_storage[,4]))
+  table$`Convergence: % From Size = 1 to Size = N`[1] <- spk_chr(convergence_storage[,1], spotColor=FALSE)
+  table$`Convergence: % From Size = 1 to Size = N`[2] <- spk_chr(convergence_storage[,2], spotColor=FALSE)
+  table$`Convergence: % From Size = 1 to Size = N`[3] <- spk_chr(convergence_storage[,3], spotColor=FALSE)
+  table$`Convergence: % From Size = 1 to Size = N`[4] <- spk_chr(convergence_storage[,4], spotColor=FALSE)
 
   datatable(table, escape = F,
             options = list(columnDefs = list(list(className = 'dt-center', targets = 0:5)),
@@ -384,12 +384,19 @@ ads_matrix = function(list_of_alt, n){
   for (i in 1:length(list_of_alt)) {
     row.names(ads_mat)[i] = c(list_of_alt[[i]]$Alternative[1])
     
-    for (j in 1:length(list_of_alt)) {
+    for (j in i:length(list_of_alt)) {
       if(i == j){
         ads_mat[i,j] = 0
       } else {
         ads_mat[i,j] = as.numeric(ads_score(list_of_alt[[i]],list_of_alt[[j]], n))
         colnames(ads_mat)[j] = c(list_of_alt[[j]]$Alternative[1])
+      } 
+    }
+    for (j in 1:i){
+      if(i == j) {ads_mat[i,j] = 0} else {
+      # matrix is anti-symmatric
+      ads_mat[i, j] <- -ads_mat[j, i]
+      colnames(ads_mat)[j] = c(list_of_alt[[j]]$Alternative[1])
       }
     }
   }
@@ -418,7 +425,12 @@ ads_table <- function(dat, alpha, delta) {
   build_matrix$`Alternative` <- names(build_matrix[1:nrow(build_matrix)])
   build_matrix <- build_matrix[order(-build_matrix$`ADS Score`), , drop = FALSE] %>% 
     select(`Alternative`, everything())
-  return(build_matrix)
+  
+  # Reorder columns for symmetry
+  reord <- build_matrix$Alternative
+  new_mat <- build_matrix[,build_matrix$Alternative]
+  full_mat <- cbind(build_matrix[,1], new_mat, build_matrix[,length(build_matrix)])
+  return(full_mat)
 }
 
 #################################
