@@ -214,6 +214,10 @@ dominance_plot <- function(dat, alt1, alt2){
   return(dom_plot)
 }
 
+# The function below takes in four inputs: The data, the two alternatives, and
+# the sample size (k).
+# The output is the probability that one alternative will continue to dominate
+# another alternative.
 cheb_calc <- function(dat, alt1, alt2, k){
   alt1 <- subset(dat, Alternative==alt1)
   alt2 <- subset(dat, Alternative==alt2)
@@ -239,6 +243,9 @@ cheb_calc <- function(dat, alt1, alt2, k){
 ############################
 
 # Thompson's Method
+# This function takes in parameters alpha and delta and returns the sample size (n)
+# necessary to ensure pairwise comparison %s are within delta of their
+# actual values.
 thompson_method = function(alpha, delta) {
   if(alpha==.5){
     d2n <- .44129
