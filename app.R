@@ -9,6 +9,8 @@ library(shinycssloaders)
 library(directlabels)
 library(sparkline)
 library(DT)
+library(plotly)
+
 
 source('R/functions.R')
 
@@ -117,7 +119,7 @@ ui <- fluidPage(
 
                                             fluidRow( 
                                                      column(6,plotOutput("level2_trade")),
-                                                     column(6,plotOutput("level2_dynamic"))
+                                                     column(6,plotlyOutput("level2_dynamic"))
                                                      ),
                                             downloadButton("level2png", "Download"))
                        )
@@ -271,41 +273,45 @@ server <- function(input, output, session) {
                                              input$sig_level, input$half_width)})
   
   # Level 2 Tab Plots
+  # Allow the user to input the delta value used level2 analysis
   observe({
     updateNumericInput(session, "delta_value",
-                         value = delta_value(data(), input$alt1_2, .05))
+                         value = delta_value(data(), input$alt1_2, 
+                                             input$alt2_2,.05),
+                       min = mean(subset(data(), Alternative==input$alt1_2)$Cost))
     })
   
-  
+  # Specify the chosen alternative for level two analysis
   observe({
-    pareto <- pareto_front(data())
-    updateSelectInput(session, "alt1_2",choices = pareto[1:(length(pareto)-1)]
-    )})
-  observe({
-    pareto <- pareto_front(data())
-    pareto <- pareto[which(pareto==input$alt1_2)+1]
-    updateSelectInput(session, "alt2_2",choices = pareto)
-  })
-  
+    updateSelectInput(session, "alt1_2",choices = data()$Alternative,
+                      selected = unique(data()$Alternative)[1])
+    updateSelectInput(session, "alt2_2",choices = data()$Alternative, 
+                      selected = unique(data()$Alternative)[2])              
+    })
+
   output$level2_trade <- renderPlot({
-    if(input$delta == 0){gen_level2_plot(data(), input$alt1_2,
-                                         pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
+    if(input$delta == 0){
+      gen_level2_plot(data(), input$alt1_2,
+                                         input$alt2_2, 
                                          tolerance = input$delta_parameter)
     } else {
       gen_level2_plot(data(), input$alt1_2,
-                      pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
+                      input$alt2_2, 
                       tolerance = delta_param(data(),input$alt1_2,input$delta_value))
       }
     })
-  output$level2_dynamic <- renderPlot({
+  
+  output$level2_dynamic <- renderPlotly({
+    # delta == 0 means we set the delta value by entering percentage
     if(input$delta == 0){
     dynamic_level2(data(), input$alt1_2, 
-                   pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
-                   delta_value(data(), input$alt1_2, 
+                   input$alt2_2, 
+                   delta_value(data(), input$alt1_2, input$alt2_2,
                                input$delta_parameter))
     } else {
+    # else,
       dynamic_level2(data(), input$alt1_2, 
-                     pareto_front(data())[which(pareto_front(data()) ==input$alt1_2)+1], 
+                     input$alt2_2, 
                      input$delta_value)
     }
     })

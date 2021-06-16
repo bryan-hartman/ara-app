@@ -44,6 +44,33 @@ pareto_front <- function(dat){
 }
 
 
+# This function generates a list of pareto(-) and pareto(+) options in terms
+# of expected value from a given dataset and alternative
+pareto_options <- function(dat, alt){
+  if(alt==""){
+    return(FALSE)
+  }
+  # gather all mean values
+  mean.alt <- dat %>% group_by(Alternative) %>% summarise_all(mean)
+
+  # Gather cost and value for alternative selected
+  cost_threshold <- mean.alt[mean.alt$Alternative==alt,]$Cost
+  value_threshold <- mean.alt[mean.alt$Alternative==alt,]$Value
+  
+  # Identify options that don't meet criteria
+  # Dominated
+  dominated <- mean.alt[mean.alt$Value > value_threshold & 
+                        mean.alt$Cost < cost_threshold,]$Alternative
+  dominating <- mean.alt[mean.alt$Value < value_threshold & 
+                           mean.alt$Cost > cost_threshold,]$Alternative
+  # remove unavailable options
+  mean.alt <- subset(mean.alt, !(Alternative %in% c(dominated, dominating, alt)))
+  
+  # returned shortened list
+  return(mean.alt$Alternative)
+
+}
+
 # Below are the functions for each plot used in the Realization Analysis
 
 #####################################################
@@ -446,85 +473,84 @@ ads_table <- function(dat, alpha, delta) {
 #####Level 2######
 #################################
 
-level2 = function(a, b, tolerance = .05){
-  # a and b are separate alternatives in tibble/dataframe format with cost and value columns
-  # b is the chosen alternative 
+level2 = function(alt2, alt1, tolerance = .05){
+  # alt1 and alt2 are separate alternatives in tibble/dataframe format with cost and value columns
+  # alt1 is the chosen alternative 
   # a may be pareto(-) in relation to b or pareto(+). 
   # Neither alternative expected value dominates the other.
   # tolerance is the percentage less expected value the DM would be ok with at the expected cost
   
-  b.value.mean = mean(b$Value)
-  b.cost.mean = mean(b$Cost)
-  a.value.mean = mean(a$Value)
-  a.cost.mean = mean(a$Cost)
+  alt1.value.mean = mean(alt1$Value)
+  alt1.cost.mean = mean(alt1$Cost)
+  alt2.value.mean = mean(alt2$Value)
+  alt2.cost.mean = mean(alt2$Cost)
   
-  # alternative b should have greater value and greater cost
-  if (a.value.mean > b.value.mean && a.cost.mean > b.cost.mean){
-      # a is pareto(+) in relation to b
-
+  # The case when alt2 is pareto(+) in relation to alt1
+  if (alt2.value.mean > alt1.value.mean && alt2.cost.mean > alt1.cost.mean){
+      
       #trade1 is the value/cost trade-off that you are considering
-      trade1 = (a.value.mean - b.value.mean)/(a.cost.mean - b.cost.mean)
+      trade1 = (alt2.value.mean - alt1.value.mean)/(alt2.cost.mean - alt1.cost.mean)
     
       #trade2 is the point at which you would no longer make the value/cost trade off and go with the cheaper alternative
-      trade2 = ((a.value.mean) - b.value.mean)/(a.cost.mean + (a.cost.mean - b.cost.mean)*tolerance - b.cost.mean)
+      trade2 = (alt2.value.mean - alt1.value.mean)/(alt2.cost.mean - (alt1.cost.mean)*(1+tolerance))
     
       #bind alternatives for computation
-      pairings = tibble(a.value = a.value.mean, a.cost = a.cost.mean, b.value = b$Value, b.cost = b$Cost)
+      pairings = tibble(alt2.value = alt2.value.mean, alt2.cost = alt2.cost.mean, alt1.value = alt1$Value, alt1.cost = alt1$Cost)
     
-      #compute Zone 6 - Trade much worse than expected - A dominates B
-      pairings = mutate(pairings, zone6 = if_else((pairings$b.value < a.value.mean & pairings$b.cost > a.cost.mean), 1, 0)) 
-      #compute Zone 5 - Trade worse than expected - B is pareto(+) compared to A, but contradicts decision to select B
-      pairings = mutate(pairings, zone5 = if_else(pairings$b.value > a.value.mean & pairings$b.cost > a.cost.mean, 1, 0)) 
+      #compute Zone 6 - Trade much worse than expected - alt2 dominates alt1
+      pairings = mutate(pairings, zone6 = if_else((pairings$alt1.value < alt2.value.mean & pairings$alt1.cost > alt2.cost.mean), 1, 0)) 
+      #compute Zone 5 - Trade worse than expected - alt1 is pareto(+) compared to A, but contradicts decision to select alt1
+      pairings = mutate(pairings, zone5 = if_else(pairings$alt1.value > alt2.value.mean & pairings$alt1.cost > alt2.cost.mean, 1, 0)) 
       #compute Zone 4 - Trade worse than expected - Unacceptable
-      pairings = mutate(pairings, zone4 = if_else((a.value.mean-pairings$b.value)/(a.cost.mean-pairings$b.cost) > trade2 & 
-                                                    pairings$b.value < a.value.mean & pairings$b.cost < a.cost.mean &
+      pairings = mutate(pairings, zone4 = if_else((alt2.value.mean-pairings$alt1.value)/(alt2.cost.mean-pairings$alt1.cost) > trade2 & 
+                                                    pairings$alt1.value < alt2.value.mean & pairings$alt1.cost < alt2.cost.mean &
                                                     zone5 < 1 & zone6 < 1, 1, 0))
       #compute Zone 3 - Trade worse than expected - Acceptable
-      pairings = mutate(pairings, zone3 = if_else((a.value.mean-pairings$b.value)/(a.cost.mean-pairings$b.cost) < trade2 & 
-                                                    (a.value.mean-pairings$b.value)/(a.cost.mean-pairings$b.cost) < trade1 &
-                                                    zone5 < 1 & zone6 < 1, 1, 0))
+      pairings = mutate(pairings, zone3 = if_else((alt2.value.mean-pairings$alt1.value)/(alt2.cost.mean-pairings$alt1.cost) < trade2 & 
+                                                    (alt2.value.mean-pairings$alt1.value)/(alt2.cost.mean-pairings$alt1.cost) > trade1 &
+                                                    zone5 < 1 & zone6 < 1 & zone4 < 1, 1, 0))
       #compute Zone 2 - Trade better than expected
-      pairings = mutate(pairings, zone2 = if_else((a.value.mean-pairings$b.value)/(a.cost.mean-pairings$b.cost) > trade1 & 
-                                                    pairings$b.value < a.value.mean, 1, 0))
-      #compute Zone 1 - Trade better than expected - B dominates A
-      pairings = mutate(pairings, zone1 = if_else(pairings$b.value > a.value.mean & pairings$b.cost < a.cost.mean, 1, 0))
+      pairings = mutate(pairings, zone2 = if_else((alt2.value.mean-pairings$alt1.value)/(alt2.cost.mean-pairings$alt1.cost) < trade1 & 
+                                                    pairings$alt1.value < alt2.value.mean & zone6 < 1, 1, 0))
+      #compute Zone 1 - Trade better than expected - alt1 dominates alt2
+      pairings = mutate(pairings, zone1 = if_else(pairings$alt1.value > alt2.value.mean & pairings$alt1.cost < alt2.cost.mean, 1, 0))
 
-  } else if (b.value.mean > a.value.mean && b.cost.mean > a.cost.mean){
-      # a is pareto(-) in relation to b
+  } else if (alt1.value.mean > alt2.value.mean && alt1.cost.mean > alt2.cost.mean){
+      # alt2 is pareto(-) in relation to alt1
     
       #trade1 is the value/cost trade-off that you are considering
-      trade1 = (b.value.mean - a.value.mean)/(b.cost.mean - a.cost.mean)
+      trade1 = (alt1.value.mean - alt2.value.mean)/(alt1.cost.mean - alt2.cost.mean)
     
       #trade2 is the point at which you would no longer make the value/cost trade off and go with the cheaper alternative
       #This is the minimum acceptable trade ... default at 5% less than expected mean
-      trade2 = ((b.value.mean) - a.value.mean)/(b.cost.mean*(1+tolerance) - a.cost.mean)
+      trade2 = ((alt1.value.mean) - alt2.value.mean)/(alt1.cost.mean*(1+tolerance) - alt2.cost.mean)
     
       #bind alternatives for computation
-      pairings = tibble(a.value = a.value.mean, a.cost = a.cost.mean, b.value = b$Value, b.cost = b$Cost)
+      pairings = tibble(alt2.value = alt2.value.mean, alt2.cost = alt2.cost.mean, alt1.value = alt1$Value, alt1.cost = alt1$Cost)
       
-      #compute Zone 6 - Trade much worse than expected - A dominates B
-      pairings = mutate(pairings, zone6 = if_else((pairings$b.value < a.value.mean & pairings$b.cost > a.cost.mean), 1, 0)) 
-      #compute Zone 5 - Trade worse than expected - B is pareto(-) to A
-      pairings = mutate(pairings, zone5 = if_else(pairings$b.value < a.value.mean & pairings$b.cost < a.cost.mean, 1, 0)) 
+      #compute Zone 6 - Trade much worse than expected - alt2 dominates alt1
+      pairings = mutate(pairings, zone6 = if_else((pairings$alt1.value < alt2.value.mean & pairings$alt1.cost > alt2.cost.mean), 1, 0)) 
+      #compute Zone 5 - Trade worse than expected - alt1 is pareto(-) to A
+      pairings = mutate(pairings, zone5 = if_else(pairings$alt1.value < alt2.value.mean & pairings$alt1.cost < alt2.cost.mean, 1, 0)) 
       #compute Zone 4 - Trade worse than expected - Unacceptable
-      pairings = mutate(pairings, zone4 = if_else((pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade2 & 
-                                                    pairings$b.value > a.value.mean & pairings$b.cost > a.cost.mean &
+      pairings = mutate(pairings, zone4 = if_else((pairings$alt1.value-alt2.value.mean)/(pairings$alt1.cost-alt2.cost.mean) < trade2 & 
+                                                    pairings$alt1.value > alt2.value.mean & pairings$alt1.cost > alt2.cost.mean &
                                                     zone6 < 1 & zone5 < 1, 1, 0))
       #compute Zone 3 - Trade worse than expected - Acceptable
-      pairings = mutate(pairings, zone3 = if_else(trade2 < (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) & 
-                                                    (pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) < trade1 &
+      pairings = mutate(pairings, zone3 = if_else(trade2 < (pairings$alt1.value-alt2.value.mean)/(pairings$alt1.cost-alt2.cost.mean) & 
+                                                    (pairings$alt1.value-alt2.value.mean)/(pairings$alt1.cost-alt2.cost.mean) < trade1 &
                                                     zone6 < 1 & zone5 < 1, 1, 0))
       #compute Zone 2 - Trade better than expected
-      pairings = mutate(pairings, zone2 = if_else((pairings$b.value-a.value.mean)/(pairings$b.cost-a.cost.mean) > trade1 & 
-                                                    pairings$b.cost > a.cost.mean, 1, 0))
-      #compute Zone 1 - Trade better than expected - B dominates A
-      pairings = mutate(pairings, zone1 = if_else(pairings$b.value > a.value.mean & pairings$b.cost < a.cost.mean, 1, 0))
+      pairings = mutate(pairings, zone2 = if_else((pairings$alt1.value-alt2.value.mean)/(pairings$alt1.cost-alt2.cost.mean) > trade1 & 
+                                                    pairings$alt1.cost > alt2.cost.mean, 1, 0))
+      #compute Zone 1 - Trade alt1etter than expected - alt1 dominates alt2
+      pairings = mutate(pairings, zone1 = if_else(pairings$alt1.value > alt2.value.mean & pairings$alt1.cost < alt2.cost.mean, 1, 0))
       
 
   } else {
     return(FALSE)
   }
-  #Compute zones in place in single column named zoneTest for histogram building
+  #Compute zones in place in single column named zoneTest for histogram alt1uilding
   pairings = mutate(pairings, zoneTest = if_else(zone1 == 1, 1, 
                                                  if_else(zone2 == 1, 2, 
                                                          if_else(zone3 == 1, 3, 
@@ -542,14 +568,17 @@ level2 = function(a, b, tolerance = .05){
 # This function generates the level 2 histogram found on the trade zones
 # tab within level 2. It leverages the level2 function to determine
 # the trade zone counts and displays the breakdown in a histogram.
-gen_level2_plot <- function(dat, param1, param2, tolerance){
+gen_level2_plot <- function(dat, alt1, alt2, tolerance){
+  # selected alternative is alt1
   if (is.null(dat)) {
     return(NULL)
   }
-
-  parameter1 <- subset(dat, Alternative == param1)
-  parameter2 <- subset(dat, Alternative == param2)
-  hist_plot <- level2(parameter2, parameter1, tolerance)
+  # alternatives must be pareto(+)/pareto(-) from each other
+  if (alt2 %in% pareto_options(dat, alt1)){
+    
+  alternative1 <- subset(dat, Alternative == alt1)
+  alternative2 <- subset(dat, Alternative == alt2)
+  hist_plot <- level2(alternative2, alternative1, tolerance)
   
   hist_rollup <- hist_plot%>%
     select(zoneTest) %>% group_by(zoneTest) %>% 
@@ -567,7 +596,7 @@ gen_level2_plot <- function(dat, param1, param2, tolerance){
     scale_x_discrete(drop=FALSE)+
     scale_y_continuous(limits = c(0,max(hist_rollup$percent)+20), expand = c(0, 0))+
     scale_color_colorblind()+
-    labs(title = paste0("Trade Zones for alternative ", param1, " with respect to EV[", param2,"]")
+    labs(title = paste0("Trade Zones for alternative ", alt1, " with respect to EV[", alt2,"]")
          , fill = "Zone", y = "% of Total Trades", x = "Zone")+
     geom_text(aes(label=percent), position=position_dodge(width=0.9), vjust=-0.25)+
     scale_fill_manual(values = c("green4","green2","yellow2","orange","red2","red4"),
@@ -580,17 +609,37 @@ gen_level2_plot <- function(dat, param1, param2, tolerance){
                                "Zone 4",
                                "Zone 5",
                                "Zone 6"))
-}
+  } else {
+    return()
+  }
+  } 
+
 
 # return the delta value associated with the delta parameter
-delta_value = function(dat, param1, tolerance = .05){
-  b <- subset(dat, Alternative == param1)
-  delta_val = round(mean(b$Cost)*(1+tolerance),2)
-  return(delta_val)
+delta_value = function(dat, alt1, alt2, tolerance = .05){
+  if (is.null(dat) || is.nan(mean(subset(dat, Alternative==alt2)$Cost))) {
+    return(NULL)
   }
+  # This function does not assume pareto(+/-) between alt1 and alt2
+  # alt1 is the chosen alternative
+  # Gather expected value for both alternatives to define the budget line
+  # Function is defaulted to move delta (tolerance) percent to the right of chosen alternative
+  # Logic below supports adjusting delta parameter based on whether we move
+  # up or down the pareto.
+  if(mean(subset(dat, Alternative==alt2)$Cost) > mean(subset(dat, Alternative==alt1)$Cost)){
+    b_alt1 <- subset(dat, Alternative == alt1)
+    b_alt2 <- subset(dat, Alternative == alt2)
+    delta_val = round(mean(b_alt1$Cost)*(1+tolerance),2)
+  } else {
+    b_alt1 <- subset(dat, Alternative == alt1)
+    delta_val = round(mean(b_alt1$Cost)*(1+tolerance),2)
+  }
+  return(delta_val)
+}
 
-delta_param = function(dat, param1, dv){
-  b <- subset(dat, Alternative == param1)
+delta_param = function(dat, alt, dv){
+  # Given a delta budget amount (dv), return the percentage delta parameter value.
+  b <- subset(dat, Alternative == alt)
   delta_p <- dv/mean(b$Cost)-1
   return(delta_p)
 }
@@ -604,6 +653,9 @@ delta_param = function(dat, param1, dv){
 # is pareto(+) in comparison to the compared alternative.
 dynamic_level2 <- function(dat, alt1, alt2, d_val){
   
+  # alternatives must be pareto(+)/pareto(-) from each other
+  if (alt2 %in% pareto_options(dat, alt1)){
+    
   # Selected alternative is alt1. 
   # Identify mean value/cost for each alternative
   mean.alt = dat %>% group_by(Alternative) %>% summarise_all(mean)
@@ -611,6 +663,13 @@ dynamic_level2 <- function(dat, alt1, alt2, d_val){
   # Center point for each expected value
   center2 <- c(mean.alt[mean.alt$Alternative==alt2,]$Cost,mean.alt[mean.alt$Alternative==alt2,]$Value)
   center1 <- c(mean.alt[mean.alt$Alternative==alt1,]$Cost,mean.alt[mean.alt$Alternative==alt1,]$Value)
+  
+  # Set coordinates to match cloud plot
+  max_dist <- max(max(dat$Cost)-min(dat$Cost), max(dat$Value)-min(dat$Value))
+  x_coord <- c((max(dat$Cost)+min(dat$Cost))/2-max_dist/2, 
+               (max(dat$Cost)+min(dat$Cost))/2+max_dist/2)
+  y_coord <- c((max(dat$Value)+min(dat$Value))/2-max_dist/2, 
+               (max(dat$Value)+min(dat$Value))/2+max_dist/2)
   
   # Plot when EV[Alt1] is pareto(-) compared to EV[Alt2]
   if (mean.alt[mean.alt$Alternative==alt2,]$Cost > mean.alt[mean.alt$Alternative==alt1,]$Cost) {
@@ -641,8 +700,8 @@ dynamic_level2 <- function(dat, alt1, alt2, d_val){
                         Cost = c(center2[1], center2[1]-20*(center2[1]-d_val), center2[1]),
                         Value = c(center2[2], center2[2]-20*slope_budget*(center2[1]-d_val), center2[2]-20*m_dist))
     zone6 <- data.frame(Alternative = alt1, 
-                        Cost = c(center2[1], d_val+20*h_dist, 
-                                 d_val+20*h_dist, center2[1]),
+                        Cost = c(center2[1], d_val+20*max_dist, 
+                                 d_val+20*max_dist, center2[1]),
                         Value = c(center2[2], center2[2], 
                                   center2[2]-20*v_dist, center2[2]-20*v_dist))
     zone5 <- data.frame(Alternative = alt1, 
@@ -651,8 +710,8 @@ dynamic_level2 <- function(dat, alt1, alt2, d_val){
                         Value = c(center2[2], center2[2]+20*m_dist, 
                                   center2[2]+20*m_dist, center2[2]))
     
-    ggplot(data = dat %>% filter(Alternative %in% c(alt1)), aes(Cost, Value, color = Alternative, label = Alternative))+
-      geom_point(colour = "grey70")+
+    ggplotly(ggplot(data = dat %>% filter(Alternative %in% c(alt1)), aes(Cost, Value, color = Alternative, label = Alternative))+
+      geom_point(colour = "grey80")+
       #add polygons
       geom_polygon(data = zone1, aes(Cost, Value), fill = 'green4', alpha = .25)+
       geom_polygon(data = zone2, aes(Cost, Value), fill = 'green2', alpha = .25)+
@@ -662,37 +721,37 @@ dynamic_level2 <- function(dat, alt1, alt2, d_val){
       geom_polygon(data = zone5, aes(Cost, Value), fill = 'red4', alpha = .25)+
       #budget limit
       geom_vline(xintercept = d_val, color = "red", linetype = 2)+
-      annotate("text", label = "Budget Limit", x = 1.0005*d_val, y = center2[2]-.5*v_dist, color = "red", size = 4)+
+      annotate("text", label = "Budget Limit", x = 1.0005*d_val, y = y_coord[2], 
+               vjust = 0,color = "red", size = 4)+
       #add zone labels
-      annotate("text", label = "Zone 1", x = center2[1]-3*h_dist, y = center2[2]+2*m_dist, size = 4, hjust = 0)+
-      annotate("text", label = "Zone 2", x = 1.005*center2[1]-3*m_dist, y = .98*center2[2], size = 4, hjust = 0)+
-      annotate("text", label = "Zone 3", x = center2[1] - (2*v_dist)/slope_ev, y = center2[2]-3*m_dist, size = 4, hjust = 0)+
-      annotate("text", label = "Zone 4", x = .98*center2[1], y = center2[2]-3*m_dist, size = 4, hjust = 1, vjust = 0)+
-      annotate("text", label = "Zone 5", x = 1.005*center2[1], y = center2[2]+2*m_dist, size = 4, hjust = 0)+
-      annotate("text", label = "Zone 6", x = 1.005*center2[1], y = center2[2]-3*m_dist, size = 4, hjust = 0)+
+      annotate("text", label = "Zone 1", x = x_coord[1], y = y_coord[2], size = 4, hjust = 0)+
+      annotate("text", label = "Zone 2", x = x_coord[1], y = .98*center2[2], size = 4, hjust = 0)+
+      annotate("text", label = "Zone 3", x = center2[1] - (max_dist/4)/((slope_ev+slope_budget)/2), 
+               y = center2[2]-max_dist/4, size = 4, hjust = 0)+
+      annotate("text", label = "Zone 4", x = 1.0005*d_val, y = y_coord[1], size = 4, hjust = 1, vjust = 0)+
+      annotate("text", label = "Zone 5", x = x_coord[2], y = y_coord[2], size = 4, hjust = 1)+
+      annotate("text", label = "Zone 6", x = x_coord[2], y = y_coord[1], size = 4, hjust = 1)+
       theme_minimal()+
-      coord_fixed(xlim = c(center2[1]-3*m_dist, center2[1]+2*m_dist), 
-                  ylim = c(center2[2]-3*m_dist, center2[2]+2*m_dist))+
+      coord_fixed(xlim = x_coord, 
+                  ylim = y_coord)+
       theme(panel.border = element_rect(colour = "black", fill = NA, size = 1.15))+
-      #add zone lines
-      geom_segment(aes(x = center2[1], y = center2[2]-5*v_dist, xend = center2[1], yend = center2[2]+5*v_dist),color = "black", linetype = 1)+
-      geom_segment(aes(x = center2[1]-4*h_dist, y = center2[2], xend = center2[1]+8*h_dist, yend = center2[2]),color = "black", linetype = 1)+
-      #line from E[Alt1] to delta/budget limit
-      geom_segment(aes(x = center2[1], y = center2[2], xend = center2[1]+5*(d_val-center2[1]), 
-                       yend = center2[2]+5*slope_budget*(d_val-center2[1])),color = "black", linetype = 1)+
+
       #delta line
       geom_segment(aes(x = center1[1], y = center1[2], xend = d_val, yend = center1[2]),color = "black", linetype = 2, arrow = arrow(type = "closed", length = unit(0.1, "inches")))+
       
-      #line from E[Alt1] to E[Alt2]
-      geom_segment(aes(x = center2[1], y = center2[2], xend = center2[1]-5*m_dist, 
-                       yend = center2[2]-5*slope_ev*m_dist),color = "black", linetype = 1)+
-      geom_point(aes(x = center2[1], center2[2]), colour = "black", size = 8)+
-      geom_point(aes(x = center1[1], center1[2]), colour = "gray", size = 8)+
-      annotate("text", label = "E[2]", x = center2[1], y = center2[2], color = "white", size = 3)+
-      annotate("text", label = "E[1]", x = center1[1], y = center1[2], color = "black", size = 3)+
+      geom_point(aes(x = center2[1], center2[2]), colour = "black", size = 4)+
+      geom_point(aes(x = center1[1], center1[2]), colour = "black", size = 4)+
+      annotate("text", label = paste0("E[",alt2,"]"), x = center2[1], 
+               y = 1.03*center2[2], color = "black", size = 4)+
+      annotate("text", label =  paste0("E[",alt1,"]"), x = center1[1], 
+               y = .97*center1[2], color = "black", size = 4)+
       scale_color_manual(values = c("black", "gray", "gray"))+
       labs(x = "Cost", y = "Value")+
-      guides(color = FALSE, alpha = FALSE, size = FALSE)
+      guides(color = FALSE, alpha = FALSE, size = FALSE, fill = FALSE) +
+      theme(legend.position = 'none')) %>%
+      config(modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "autoScale2d")) %>%
+      style(hoverinfo = 'none') %>%
+      layout(font=list(family = "Arial", size = 10))
   } else {
       # Plot when EV[Alt1] is pareto(+) compared to EV[Alt2]
       # Parameters to set in the tool
@@ -706,10 +765,10 @@ dynamic_level2 <- function(dat, alt1, alt2, d_val){
       
       #define zones
       zone1 <- data.frame(Alternative = alt1, 
-                          Cost = c( center2[1]-20*m_dist, center2[1]-20*m_dist, 
+                          Cost = c( center2[1]-20*max_dist, center2[1]-20*max_dist, 
                                     center2[1], center2[1]),
-                          Value = c(center2[2], center2[2]+20*m_dist, 
-                                    center2[2]+20*m_dist, center2[2]))
+                          Value = c(center2[2], center2[2]+20*max_dist, 
+                                    center2[2]+20*max_dist, center2[2]))
       zone2 <- data.frame(Alternative = alt1, 
                           Cost = c(center2[1], center2[1], center2[1] + (20*v_dist)/slope_ev),
                           Value = c(center2[2], center2[2]+20*v_dist, center2[2]+(20*h_dist)*slope_ev))
@@ -719,20 +778,20 @@ dynamic_level2 <- function(dat, alt1, alt2, d_val){
                           Value = c(center2[2], center2[2]+(20*h_dist)*slope_ev, 
                                     center2[2]+20*slope_budget*(d_val-center2[1])))
       zone4 <- data.frame(Alternative = alt1, 
-                          Cost = c(center2[1], center2[1]+20*(d_val-center2[1]), d_val + (20*h_dist)),
+                          Cost = c(center2[1], center2[1]+20*(d_val-center2[1]), d_val + (20*max_dist)),
                           Value = c(center2[2], center2[2]+20*slope_budget*(d_val-center2[1]), center2[2]))
       zone6 <- data.frame(Alternative = alt1, 
-                          Cost = c(center2[1], d_val+20*h_dist, 
-                                   d_val+20*h_dist, center2[1]),
+                          Cost = c(center2[1], d_val+20*max_dist, 
+                                   d_val+20*max_dist, center2[1]),
                           Value = c(center2[2], center2[2], 
-                                    center2[2]-20*v_dist, center2[2]-20*v_dist))
+                                    center2[2]-20*max_dist, center2[2]-20*max_dist))
       zone5 <- data.frame(Alternative = alt1, 
-                          Cost = c(center2[1], center2[1]-20*h_dist, 
-                                   center2[1]-20*h_dist,center2[1]),
+                          Cost = c(center2[1], center2[1]-20*max_dist, 
+                                   center2[1]-20*max_dist,center2[1]),
                           Value = c(center2[2], center2[2], 
-                                    center2[2]-20*v_dist, center2[2]-20*v_dist))
+                                    center2[2]-20*max_dist, center2[2]-20*max_dist))
       
-      ggplot(data = dat %>% filter(Alternative %in% c(alt1)), aes(Cost, Value, color = Alternative, label = Alternative))+
+      ggplotly(ggplot(data = dat %>% filter(Alternative %in% c(alt1)), aes(Cost, Value, color = Alternative, label = Alternative))+
         geom_point(colour = "grey70")+
         #add polygons
         geom_polygon(data = zone1, aes(Cost, Value), fill = 'green4', alpha = .25)+
@@ -745,34 +804,34 @@ dynamic_level2 <- function(dat, alt1, alt2, d_val){
         geom_vline(xintercept = d_val, color = "red", linetype = 2)+
         annotate("text", label = "Budget Limit", x = 1.0005*d_val, y = center2[2]-.5*v_dist, color = "red", size = 4)+
         #add zone labels
-        annotate("text", label = "Zone 1", x = center2[1]-2*h_dist, y = center2[2]+3*v_dist, size = 4, hjust = 0)+
-        annotate("text", label = "Zone 2", x = 1.005*center2[1], y = center2[2]+3*v_dist, size = 4, hjust = 0)+
-        annotate("text", label = "Zone 3", x = center2[1] + (3*v_dist)/slope_ev, y = center2[2]+3*v_dist, size = 4, hjust = 0)+
-        annotate("text", label = "Zone 4", x = d_val+3*h_dist, y = 1.005*center2[2], size = 4, hjust = 1, vjust = 0)+
-        annotate("text", label = "Zone 5", x = center2[1]-2*h_dist, y = center2[2]-2*v_dist, size = 4, hjust = 0)+
-        annotate("text", label = "Zone 6", x = 1.005*center2[1], y = center2[2]-2*v_dist, size = 4, hjust = 0)+
+        annotate("text", label = "Zone 1", x = x_coord[1], y = y_coord[2], size = 4, hjust = 0)+
+        annotate("text", label = "Zone 2", x = center1[1], y = y_coord[2], size = 4, hjust = 0)+
+        annotate("text", label = "Zone 3", x = center2[1] + (max_dist/4)/((slope_ev+slope_budget)/2), y = center2[2]+max_dist/4, size = 4, hjust = 0)+
+        annotate("text", label = "Zone 4", x = x_coord[2], y = 1.02*center2[2], size = 4, hjust = 1, vjust = 0)+
+        annotate("text", label = "Zone 5", x = x_coord[1], y = y_coord[1], size = 4, hjust = 0)+
+        annotate("text", label = "Zone 6", x = x_coord[2], y = y_coord[1], size = 4, hjust = 0)+
         theme_minimal()+
-        coord_fixed(xlim = c(center2[1]-2*m_dist, d_val+3*m_dist), 
-                    ylim = c(center2[2]-2*m_dist, center2[2]+3*m_dist))+
+        coord_fixed(xlim = x_coord, 
+                    ylim = y_coord)+
         theme(panel.border = element_rect(colour = "black", fill = NA, size = 1.15))+
-        #add zone lines
-        geom_segment(aes(x = center2[1], y = center2[2]-5*v_dist, xend = center2[1], yend = center2[2]+5*v_dist),color = "black", linetype = 1)+
-        geom_segment(aes(x = center2[1]-4*h_dist, y = center2[2], xend = center2[1]+8*h_dist, yend = center2[2]),color = "black", linetype = 1)+
-        #line from E[Alt1] to delta/budget limit
-        geom_segment(aes(x = center2[1], y = center2[2], xend = center2[1]+5*(d_val-center2[1]), 
-                         yend = center2[2]+5*slope_budget*(d_val-center2[1])),color = "black", linetype = 1)+
         #delta line
         geom_segment(aes(x = center1[1], y = center1[2], xend = d_val, yend = center1[2]),color = "black", linetype = 2, arrow = arrow(type = "closed", length = unit(0.1, "inches")))+
-    
-        #line from E[Alt1] to E[Alt2]
-        geom_segment(aes(x = center2[1], y = center2[2], xend = center2[1]+5*h_dist, 
-                         yend = center2[2]+5*slope_ev*h_dist),color = "black", linetype = 1)+
-        geom_point(aes(x = center2[1], center2[2]), colour = "black", size = 8)+
-        geom_point(aes(x = center1[1], center1[2]), colour = "gray", size = 8)+
-        annotate("text", label = "E[2]", x = center2[1], y = center2[2], color = "white", size = 3)+
-        annotate("text", label = "E[1]", x = center1[1], y = center1[2], color = "black", size = 3)+
+
+        geom_point(aes(x = center2[1], center2[2]), colour = "black", size = 4)+
+        geom_point(aes(x = center1[1], center1[2]), colour = "black", size = 4)+
+        annotate("text", label = paste0("E[",alt2,"]"), x = center2[1], 
+                   y = .97*center2[2], color = "black", size = 4)+
+        annotate("text", label =  paste0("E[",alt1,"]"), x = center1[1], 
+                   y = 1.03*center1[2], color = "black", size = 4)+
         scale_color_manual(values = c("black", "gray", "gray"))+
         labs(x = "Cost", y = "Value")+
-        guides(color = FALSE, alpha = FALSE, size = FALSE)
+        guides(color = FALSE, alpha = FALSE, size = FALSE, fill = FALSE) +
+          theme(legend.position = 'none')) %>%
+        config(modeBarButtonsToRemove = c("zoomIn2d", "zoomOut2d", "autoScale2d")) %>%
+        style(hoverinfo = 'none') %>%
+        layout(font=list(family = "Arial", size = 10))
+  }
+  } else {
+    return()
   }
 }
